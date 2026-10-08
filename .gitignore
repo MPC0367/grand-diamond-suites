@@ -1,0 +1,11 @@
+# Local-only preview build
+artifact-preview.html
+
+# Local preview server
+serve.ps1
+
+# OS and editor noise
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
