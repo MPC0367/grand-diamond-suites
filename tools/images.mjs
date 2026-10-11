@@ -17,7 +17,7 @@ import sharp from "sharp";
 import { readFile, writeFile, mkdir, stat, readdir, unlink } from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { media, unused } from "../src/data/media.mjs";
+import { media } from "../src/data/media.mjs";
 
 const ORIG = path.resolve("_private/originals");
 const UPSCALED = path.resolve("_private/upscaled");
@@ -161,6 +161,8 @@ if (!only) {
   /* remove files left over from photographs that are no longer used */
   for (const f of await readdir(OUT)) if (!wanted.has(f)) { await unlink(path.join(OUT, f)); console.log("removed stale", f); }
   await writeFile("src/data/media.generated.json", JSON.stringify(generated, null, 1) + "\n", "utf8");
+  /* photographs fetched and left out, with the reason for each: a private working record */
+  let unused = []; try { unused = JSON.parse(await readFile("_private/unused-photographs.json", "utf8")); } catch (e) {}
   const notUsed = unused.map((u) => ({ ...u, source: srcInfo.get(u.original) ? { url: srcInfo.get(u.original).sourceUrl, width: srcInfo.get(u.original).width, height: srcInfo.get(u.original).height } : null }));
   const excluded = index.items.filter((i) => i.excluded).map((i) => ({ file: i.base, reason: i.excluded }));
   await writeFile("_private/asset-manifest.json", JSON.stringify({ built: new Date().toISOString(), originalsFetched: index.fetchedAt, cdnBase: index.cdnBase, used: manifest, fetchedButNotUsed: notUsed, onTheHotelCdnButNotTheHotelsOwn: excluded }, null, 1), "utf8");

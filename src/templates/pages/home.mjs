@@ -3,7 +3,7 @@
    essentials and the closing invitation. */
 import { html, raw } from "../../lib/html.mjs";
 import { icon } from "../icons.mjs";
-import { pic, shot, planner, bookButton, bookingUrl, arrowLink, sectionHead, eyebrow, finder, faqList, mapPlate, hoursTable, addressCard, srcsetOf, newTab } from "../components.mjs";
+import { pic, shot, planner, bookButton, bookingUrl, arrowLink, sectionHead, eyebrow, finder, faqList, mapPlate, hoursTable, addressCard, srcsetOf, newTab, newTabNote } from "../components.mjs";
 import { home as T } from "../../content/home.mjs";
 import { suites } from "../../data/suites.mjs";
 import { NEAR_HOME } from "../../data/places.mjs";
@@ -45,7 +45,7 @@ export const homeDef = {
     <h1 class="display" id="hero-title">${marked(c, T.hero.title)}</h1>
     <p class="hero__sub">${c.l(T.hero.sub)}</p>
     <div class="hero__actions">
-      <a class="btn btn--ink" href="${bookingUrl(c)}" target="_blank" rel="noopener noreferrer" data-open-planner data-prefer-dock data-hero-cta>${c.t("checkAvailability")}</a>
+      <a class="btn btn--ink" href="${bookingUrl(c)}" target="_blank" rel="noopener noreferrer" data-open-planner data-prefer-dock data-hero-cta>${c.t("checkAvailability")}${newTabNote(c)}</a>
       <a class="btn btn--line" href="#find-your-space">${c.l(T.hero.explore)}${icon("arrow")}</a>
     </div>
   </div>

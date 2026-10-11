@@ -14,10 +14,11 @@ Live preview: https://mpc0367.github.io/grand-diamond-suites/
 
 ## What it is
 
-A static website in English and Thai: a home page, six suite pages, a suite comparison,
-dining, facilities, location, gallery, offers, contact, questions, privacy, booking terms
-and a 404 page. No framework and no third-party script. Fonts, photographs and the street
-map are served by the site itself.
+A static website in English and Thai: a home page, a suites overview, six suite pages, a
+suite comparison, dining, facilities, location, gallery, offers, contact, questions,
+privacy and booking terms, with a 404 page and a root page that picks the language. No
+framework and no third-party script. Fonts, photographs and the street map are served by
+the site itself.
 
 The site does not take bookings. Its stay planner builds a link to the hotel's own booking
 page that carries the arrival date, the number of nights, the number of adults and the
@@ -32,7 +33,7 @@ ages of any children, and nothing else.
 | `src/i18n/ui.mjs` | Interface words |
 | `src/templates/` | HTML templates |
 | `src/assets/` | One stylesheet, one script, fonts, logos and the map plates |
-| `tools/` | Build, image processing, map drawing, local server and checks |
+| `tools/` | Build, local server and checks, plus the scripts that made the images, map and logo files |
 | `docs/` | The built site. GitHub Pages serves this folder. |
 
 ## Build and run
@@ -54,8 +55,10 @@ order, no duplicate ids, every image described and sized, every internal link an
 resolving, and the same pages in both languages.
 
 Browser checks (every page at ten screen sizes, behaviour, and an axe-core accessibility
-scan of every page and dialog) need the tool dependencies and the local server running.
-Add `--engine=webkit` to run them in Safari's engine, or `--quick` for two screen sizes:
+scan of every page and dialog) need the tool dependencies, a build (it writes the page
+list the checks read) and the local server running. They drive Microsoft Edge, which must
+be installed. Add `--quick` for two screen sizes, or `--engine=webkit` to use Safari's
+engine (run `npx playwright install webkit` once first):
 
 ```bash
 npm install
@@ -64,6 +67,10 @@ npm install
 ```bash
 node tools/check.mjs
 ```
+
+Only the build, the server and the checks run from a clone. The image, map, logo and
+sharing-image scripts read the studio's own working copies of the originals, which are not
+in this repository; they are kept as a record of how the files were made.
 
 ## Photographs and map
 

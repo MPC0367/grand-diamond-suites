@@ -36,7 +36,7 @@ export const hotel = {
 
   /* The footer of the official site prints the street numbers as
      "888/1,13-19 425-610". They are reproduced as printed; how they should
-     be punctuated is a question for the hotel (see the verification register). */
+     be punctuated is a question for the hotel. */
   address: {
     en: ["888/1,13-19 425-610 Phetchaburi Road", "Thanon Phetchaburi, Ratchathewi", "Bangkok 10400, Thailand"],
     th: ["888/1,13-19 425-610 ถนนเพชรบุรี", "แขวงถนนเพชรบุรี เขตราชเทวี", "กรุงเทพฯ 10400"],

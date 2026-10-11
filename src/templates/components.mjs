@@ -59,6 +59,8 @@ export const arrowLink = (c, href, label, extra = {}) =>
 export const extAttrs = { target: "_blank", rel: "noopener" };
 
 export const newTab = (c) => html`<span class="sr-only"> (${c.t("newTab")})</span>`;
+/** The same notice on a button that the script turns into an in-page planner: the script removes it when it takes over the click. */
+export const newTabNote = (c) => html`<span class="sr-only" data-newtab-note> (${c.t("newTab")})</span>`;
 
 export function eyebrow(c, text) {
   return html`<p class="eyebrow">${text}</p>`;
@@ -167,7 +169,7 @@ export function plannerDialog(c) {
 
 /** Opens the planner dialog; without JavaScript it is a plain link to the booking page. */
 export function bookButton(c, { cls = "btn btn--ink", label = null, iconName = null } = {}) {
-  return html`<a class="${cls}" href="${bookingUrl(c)}" target="_blank" rel="noopener noreferrer" data-open-planner>${label || c.t("checkAvailability")}${iconName ? icon(iconName) : ""}</a>`;
+  return html`<a class="${cls}" href="${bookingUrl(c)}" target="_blank" rel="noopener noreferrer" data-open-planner>${label || c.t("checkAvailability")}${iconName ? icon(iconName) : ""}${newTabNote(c)}</a>`;
 }
 
 /* ---------- header, menu, footer ---------- */
@@ -233,7 +235,7 @@ export function menuDialog(c) {
   return html`<dialog class="menu" id="menu" aria-label="${c.t("menu")}">
     <div class="menu__top">
       <a class="brand" href="${c.href("")}" aria-label="${c.l(c.hotel.name)}, ${c.t("home")}"><picture><source type="image/webp" srcset="${c.asset("img/logo-gold.webp")}"><img src="${c.asset("img/logo-gold.png")}" width="669" height="251" alt=""></picture></a>
-      <button type="button" class="close-btn" data-close>${c.t("close")}${icon("close")}</button>
+      <button type="button" class="close-btn" data-close autofocus>${c.t("close")}${icon("close")}</button>
     </div>
     <div class="menu__body">
       <nav aria-label="${c.t("navMain")}">

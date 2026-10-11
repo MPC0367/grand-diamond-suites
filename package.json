@@ -5,7 +5,6 @@
   "description": "Unofficial redesign concept for the Grand Diamond Suites Hotel website, by O2 Design Studio.",
   "scripts": {
     "build": "node tools/build.mjs",
-    "images": "node tools/images.mjs",
     "serve": "node tools/serve.mjs",
     "check": "node tools/check.mjs"
   },

@@ -262,6 +262,8 @@
   var planDialog = d.getElementById("plan-dialog");
   var dock = $("[data-dock]");
   $$("[data-open-planner]").forEach(function (a) {
+    /* the button opens the planner in the page, so it no longer says it opens a new tab */
+    if (canDialog && planDialog) { var note = $("[data-newtab-note]", a); if (note) note.parentNode.removeChild(note); }
     a.addEventListener("click", function (ev) {
       if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.button) return;
       /* on the home page the planner is already on screen for wide viewports */

@@ -1,6 +1,6 @@
 /* Quality checks in a real browser (Edge, through Playwright).
 
-   Part 1, the sweep: every page in both languages at eight viewport sizes.
+   Part 1, the sweep: every page in both languages at ten viewport sizes.
      no failed request, no script error, no sideways scroll, nothing wider
      than the screen outside a scrolling box, every image loaded, nothing
      left hidden by the reveal effect.
@@ -18,7 +18,7 @@
    local server is blocked. The one live check of the booking page is
    tools/probe-booking.mjs, run by hand and sparingly.
 
-   Usage: node tools/check.mjs [--base=http://localhost:8321/grand-diamond-suites/] [--quick] [--only=sweep|behaviour] */
+   Usage: node tools/check.mjs [--base=http://localhost:8321/grand-diamond-suites/] [--quick] [--only=sweep|behaviour] [--engine=webkit] */
 import { chromium, webkit } from "playwright";
 import { AxeBuilder } from "@axe-core/playwright";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
@@ -513,6 +513,31 @@ if (only !== "sweep") {
     await page.click(".header-tools [data-lang-switch]"); await page.waitForLoadState("load");
     expect(/th\/suites\/compare\/\?a=family-suite&b=penthouse-suite/.test(page.url()) && (await page.inputValue("[data-pick-b]")) === "penthouse-suite", "comparison: the choice survives a language switch", page.url());
     await ctx.close();
+  }
+  {
+    /* found on the live site after publishing */
+    const ctx = await newContext({ viewport: { width: 1440, height: 900 } });
+    const page = await ctx.newPage();
+    await page.route("**/hotel-towers-at-night*", (r) => r.abort());
+    await page.goto(BASE + "en/", { waitUntil: "load" });
+    const frame = await page.evaluate(() => { const f = document.querySelector(".closing figure"); f.scrollIntoView(); const r = f.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; });
+    expect(frame[0] >= 480 && frame[1] >= 360, "home: the closing photograph's frame holds its size before the photograph arrives", frame.join(" by "));
+    expect(await page.evaluate(() => document.querySelectorAll("[data-open-planner]").length > 0 && document.querySelectorAll("[data-open-planner] [data-newtab-note]").length === 0), "booking buttons: no new-tab notice once the planner opens in the page");
+    await ctx.close();
+
+    const plain = await newContext({ viewport: { width: 1280, height: 800 }, javaScriptEnabled: false });
+    const bare = await plain.newPage();
+    await bare.goto(BASE + "th/suites/junior-suite/", { waitUntil: "load" });
+    expect(await bare.evaluate(() => { const a = [...document.querySelectorAll("a[data-open-planner]")]; return a.length > 0 && a.every((x) => x.target === "_blank" && !!x.querySelector("[data-newtab-note]")); }), "no JavaScript: every booking button says it opens a new tab");
+    await plain.close();
+
+    const phone = await newContext({ viewport: { width: 390, height: 844 }, isMobile: engine !== "webkit" ? true : undefined, hasTouch: true });
+    const small = await phone.newPage();
+    await small.goto(BASE + "en/", { waitUntil: "load" });
+    await small.tap("[data-open-menu]"); await small.waitForTimeout(300);
+    expect(await small.evaluate(() => { const m = document.getElementById("menu"); return m.open && document.activeElement === m.querySelector("[data-close]"); }), "phone: the menu opens with focus on Close, not on the logo");
+    expect(await small.evaluate(() => scrollY) === 0, "phone: the Close button's autofocus does not move the page");
+    await phone.close();
   }
   if (engine !== "webkit") {
     /* web fonts that arrive late: the stand-in fonts hold the opening lines where they are.

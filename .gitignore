@@ -14,3 +14,11 @@ desktop.ini
 _private/
 node_modules/
 
+# One-off research scripts, kept locally
+tools/crawl-official.mjs
+tools/dump-research.mjs
+tools/fetch-originals.mjs
+tools/make-media.mjs
+tools/manifest-extras.mjs
+tools/review-copies.mjs
+

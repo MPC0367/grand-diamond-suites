@@ -274,16 +274,4 @@ export const media = [
   },
 ];
 
-/* Photographs fetched from the hotel's site and deliberately left out. */
-export const unused = [
-  { original: "Ploy-Restaurant.png", reason: "Carries a generator sparkle mark in its corner and differs from the real restaurant photograph: treated as not a straight photograph until the hotel says otherwise." },
-  { original: "Grand-Diamond-Suites-Deluxe-Suite-2.JPG", reason: "A second, shower-only bathroom, while the hotel lists one shared bathroom with bathtub for the Deluxe Suite. Left out until the hotel confirms which suite it belongs to." },
-  { original: "DSC00210.JPG", reason: "Room type not labelled by the hotel (king bed plus single bed, renovated style)." },
-  { original: "hskeFTnSfiPDhcvito2b_GD12S.v2.0000000.jpg", reason: "Room type not labelled; appears to be a frame from a video." },
-  { original: "luxury-suite.webp", reason: "Labelled Luxury but shows the mural-wall room style of the Family Suite photographs; 1024 px only." },
-  { original: "deluxe.webp", reason: "Smaller copy of Deluxe Suite 4." },
-  { original: "executive-suite.webp", reason: "Smaller copy of Executive Suite 2." },
-  { original: "family-suite.webp", reason: "Smaller copy of Family Suite 2." },
-];
-
 export const mediaById = new Map(media.map((m) => [m.id, m]));
