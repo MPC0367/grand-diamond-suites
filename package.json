@@ -1,0 +1,17 @@
+{
+  "name": "grand-diamond-suites",
+  "private": true,
+  "type": "module",
+  "description": "Unofficial redesign concept for the Grand Diamond Suites Hotel website, by O2 Design Studio.",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "images": "node tools/images.mjs",
+    "serve": "node tools/serve.mjs",
+    "check": "node tools/check.mjs"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "playwright": "^1.63.0",
+    "sharp": "^0.35.5"
+  }
+}

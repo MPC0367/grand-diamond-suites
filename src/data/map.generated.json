@@ -1,0 +1,29 @@
+{
+  "width": 1600,
+  "height": 1200,
+  "bounds": {
+    "west": 100.5255,
+    "east": 100.5455,
+    "north": 13.7576849,
+    "south": 13.7431148
+  },
+  "projection": "web-mercator",
+  "source": "OpenStreetMap contributors, ODbL",
+  "fetched": "2026-10-08",
+  "files": {
+    "en": {
+      "webp": [
+        "map-en-960.webp",
+        "map-en-1600.webp"
+      ],
+      "jpg": "map-en-960.jpg"
+    },
+    "th": {
+      "webp": [
+        "map-th-960.webp",
+        "map-th-1600.webp"
+      ],
+      "jpg": "map-th-960.jpg"
+    }
+  }
+}
