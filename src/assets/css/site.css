@@ -826,12 +826,25 @@ ul.fac-list { display: grid; gap: 0; margin-top: clamp(32px, 4vw, 56px); border-
 .no-js .mapplate__view { aspect-ratio: auto; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
 .no-js .mapplate__stage { height: auto; min-width: 640px; }
 
+/* With the script the stage is the wide frame, central Bangkok. From the bottom up: a small picture of the
+     whole of it; the picture of the neighbourhood, on its part of the frame; the drawing in squares; the
+     satellite squares when that view is chosen; and the names in squares, which are the same squares in
+     both views (turned light for the satellite one). */
+.mapplate.is-live .mapplate__raster picture { position: absolute; z-index: 1; }
+.mapplate__under { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; max-width: none; -webkit-user-drag: none; user-select: none; }
+.mapplate__grid { position: absolute; inset: 0; pointer-events: none; }
+.mapplate__grid--base { z-index: 2; }
+.mapplate__grid--names { z-index: 4; }
+.mapplate__grid[hidden] { display: none; }
+.mapplate__grid img { position: absolute; max-width: none; opacity: 0; transition: opacity .2s; -webkit-user-drag: none; user-select: none; }
+.mapplate__grid img.is-in { opacity: 1; }
+.mapplate.is-sat .mapplate__under, .mapplate.is-sat .mapplate__raster picture { visibility: hidden; }
+.mapplate.is-sat .mapplate__grid--names { filter: invert(1) grayscale(1) brightness(1.9); }
 /* satellite: squares of imagery laid out on the same frame, with this site's own street names over them */
-.mapplate__tiles { position: absolute; inset: 0; z-index: 0; background: #283033; }
+.mapplate__tiles { position: absolute; inset: 0; z-index: 3; background: #283033; }
 .mapplate__tiles img { position: absolute; max-width: none; opacity: 0; transition: opacity .25s; pointer-events: none; -webkit-user-drag: none; user-select: none; }
 .mapplate__tiles img.is-in { opacity: 1; }
-.mapplate__names { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; pointer-events: none; }
-.mapplate__tiles[hidden], .mapplate__names[hidden] { display: none; }
+.mapplate__tiles[hidden] { display: none; }
 
 /* A marker: a white disc with an icon for the kind of place. Its card says what the icon means, the place's
    name, what the place is and how far it is from the hotel. The card opens when the marker is pointed at with
@@ -893,6 +906,9 @@ ul.fac-list { display: grid; gap: 0; margin-top: clamp(32px, 4vw, 56px); border-
 .pin.is-docked .pin__card::after, .pin.is-docked .pin__card::before { display: none; }
 .pin.is-docked .pin__card > .pin__x { display: grid; place-items: center; position: absolute; top: 5px; right: 5px; width: 30px; height: 30px; color: var(--on-deep-2); }
 .pin__x svg { width: 14px; height: 14px; }
+/* zoomed well out, the places would lie on top of one another: they are put away and only the hotel is marked */
+.pin[data-pin] { transition: background-color .15s, color .15s, opacity .18s; }
+.mapplate.is-far .pin[data-pin] { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .18s, visibility 0s linear .18s; }
 /* a place outside the chosen filter recedes but stays readable */
 .pin.is-dim { background: var(--canvas); border-color: var(--line-strong); color: var(--ink-2); box-shadow: none; opacity: .75; }
 .pin:disabled { pointer-events: none; cursor: default; }
@@ -900,13 +916,6 @@ ul.fac-list { display: grid; gap: 0; margin-top: clamp(32px, 4vw, 56px); border-
   width: 20px; height: 20px; border-radius: 0; border: 0; background: var(--brass-ink); transform: translate(-50%, -50%) rotate(45deg);
   box-shadow: 0 0 0 4px rgba(255, 255, 255, .92), 0 3px 12px rgba(23, 35, 41, .4); pointer-events: none; z-index: 2; cursor: default;
 }
-.pin-label {
-  position: absolute; left: calc(var(--x) * 1%); top: calc(var(--y) * 1%); transform: translate(calc(-100% + 14px), calc(-100% - 20px));
-  background: var(--ink); color: var(--paper); font-size: .75rem; font-weight: 700; padding: 5px 9px; border-radius: 3px; white-space: nowrap; z-index: 2;
-  pointer-events: none; transition: opacity .12s;
-}
-/* a card that lies over the hotel's label takes its place for as long as it shows, so that no half of a label is left sticking out */
-.mapplate__pins:has(.pin.is-on-label.is-over, .pin.is-on-label:focus-visible, .pin.is-on-label[aria-pressed="true"], .pin.is-on-label.is-lit) .pin-label { opacity: 0; }
 @media (max-width: 43.6875em) { .pin:not(.pin--hotel) { width: 30px; height: 30px; } .pin > svg { width: 16px; height: 16px; } .pin::after { inset: -8px; } }
 
 /* the controls: which view, and zoom */
@@ -956,7 +965,7 @@ ul.fac-list { display: grid; gap: 0; margin-top: clamp(32px, 4vw, 56px); border-
 @media (forced-colors: active) {
   .pin, .mapseg, .mapzoom { border: 1px solid CanvasText; }
   .mapseg button[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -3px; }
-  .pin__card, .pin-label, .mapplate__hint { border: 1px solid CanvasText; }
+  .pin__card, .mapplate__hint { border: 1px solid CanvasText; }
   .pin__card::after { display: none; }
 }
 

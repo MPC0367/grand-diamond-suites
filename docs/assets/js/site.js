@@ -1,32 +1,23 @@
-/* Grand Diamond Suites concept: browser behaviour.
-   No library. Every feature starts from working HTML and leaves it working
-   if this file fails to load: links stay links, all content is in the page. */
+/* Grand Diamond Suites concept. Source, with its comments: src/assets/js/site.js in the repository. */
+
 (function () {
   "use strict";
-
-  /* tells the page's own small script that this file arrived; without it the page goes back to its plain version */
   window.__gd = 1;
   var d = document;
   var root = d.documentElement;
   var boot = {};
   try { boot = JSON.parse(d.getElementById("boot").textContent); } catch (e) { boot = { t: {}, viewer: {}, booking: {} }; }
   var T = boot.t || {};
-
   var $ = function (sel, el) { return (el || d).querySelector(sel); };
   var $$ = function (sel, el) { return Array.prototype.slice.call((el || d).querySelectorAll(sel)); };
   var fmt = function (s, vars) { return String(s || "").replace(/\{(\w+)\}/g, function (_, k) { return vars && k in vars ? vars[k] : ""; }); };
   var reduce = false;
   try { reduce = matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
-  /* the same breakpoints as the stylesheet, in em so that they follow the reader's text size as it does */
   var wideEnough = function (em) { try { return matchMedia("(min-width: " + em + ")").matches; } catch (e) { return innerWidth >= parseFloat(em) * 16; } };
-
-  /* ---- session memory (never personal text, never required) ---- */
   var store = {
     get: function (k) { try { return JSON.parse(sessionStorage.getItem("gd:" + k)); } catch (e) { return null; } },
     set: function (k, v) { try { sessionStorage.setItem("gd:" + k, JSON.stringify(v)); } catch (e) {} }
   };
-
-  /* ---- dates: calendar days in Bangkok, arithmetic in UTC so no day shifts ---- */
   var ISO = /^(\d{4})-(\d{2})-(\d{2})$/;
   function bangkokToday() {
     try {
@@ -52,7 +43,6 @@
     try { return new Intl.DateTimeFormat(boot.locale || "en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(toUTC(iso))); }
     catch (e) { return iso; }
   }
-  /* "21 to 25 November 2026": the month and the year are said once when both dates share them */
   function showRange(a, b) {
     try {
       var f = new Intl.DateTimeFormat(boot.locale || "en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
@@ -65,8 +55,6 @@
     } catch (e) { return showDate(a) + " " + (T.to || "to") + " " + showDate(b); }
   }
   function adultsText(n) { return n === 1 ? T.adultsOne : fmt(T.adultsMany, { n: n }); }
-
-  /* ---- dialogs ---- */
   var canDialog = typeof HTMLDialogElement === "function" && typeof HTMLDialogElement.prototype.showModal === "function";
   var openers = [];
   function openDialog(dlg, opener) {
@@ -94,13 +82,6 @@
     dlg.addEventListener("click", function (ev) { if (ev.target === dlg) dlg.close(); });
     $$("[data-close]", dlg).forEach(function (b) { b.addEventListener("click", function () { dlg.close(); }); });
   });
-
-  /* ==================================================================== */
-  /* Stay planner                                                          */
-  /* One state for every planner on the page. The link it builds carries   */
-  /* only what the booking provider documents and the booking page was     */
-  /* seen to honour: date, nights, adults, children-age.                   */
-  /* ==================================================================== */
   var planners = $$("[data-planner]").map(function (form) {
     var block = form.closest(".planner-block") || form.parentNode;
     return {
@@ -118,9 +99,7 @@
     };
   });
   var B = boot.booking || {};
-  /* without the booking details the planners stay the plain links they are in the HTML */
   if (!B.page || !B.host) planners = [];
-  /* a stay the visitor has set at some point; the enquiry helper offers it, and never a default */
   var stayStored = false;
   function loadStay() {
     var s = store.get("stay");
@@ -136,21 +115,18 @@
       adults: Math.min(Math.max(parseInt(s.adults, 10) || 2, 1), B.maxAdults || 2),
       kids: (Array.isArray(s.kids) ? s.kids : []).slice(0, B.maxChildren || 0).map(age)
     };
-    /* a stay whose arrival has passed is dropped, not handed over */
     if (out.in && out.in < bangkokToday()) { out.in = ""; out.out = ""; }
     return out;
   }
   var stay = loadStay();
   var lastGo = 0;
   var saveStay = function () { store.set("stay", stay); stayStored = true; };
-
   function nightsText(n) { return n === 1 ? T.nightsOne : fmt(T.nightsMany, { n: n }); }
   function agesText(kids) {
     var labels = kids.map(function (v) { return +v === 0 ? T.ageUnder1Short : fmt(T.ageYears, { n: +v }); });
     if (labels.length < 2) return labels.join("");
     return labels.slice(0, -1).join(T.sep || ", ") + (T.and || " and ") + labels[labels.length - 1];
   }
-  /* "4 adults, 2 children aged 4 and 9": the party as a guest would say it */
   function guestsText(adults, kids) {
     var s = adultsText(adults);
     if (!kids.length) return s;
@@ -158,12 +134,9 @@
     var known = kids.every(function (v) { return v !== "" && v !== null && !isNaN(parseInt(v, 10)); });
     return s + " " + (known ? fmt(T.agedList, { ages: agesText(kids) }) : "(" + T.agesNeeded + ")");
   }
-  /* a room type is added only on a suite page whose suite has an identifier from the hotel */
   function withRoom(url, room) {
     return room && /^\d+(,\d+)*$/.test(room) && url !== B.page ? url + "&room-type=" + room : url;
   }
-
-  /* values are whole numbers and ISO dates only, so the address is written plainly */
   function bookingLink(params) {
     try {
       var u = new URL(B.page);
@@ -175,13 +148,6 @@
     if (params.adults && params.ages && params.ages.length) parts.push("children-age=" + params.ages.join(";"));
     return parts.length ? B.page + "?" + parts.join("&") : B.page;
   }
-
-  /* One reading of the stay. state is one of:
-       empty        no dates: the booking page opens with its own dates and these guests
-       valid        dates and guests the booking page was seen to take as entered
-       invalid      something to correct here (a missing age, half a date range, a past date)
-       unsupported  a request the booking page does not take as entered (too many nights
-                    or guests): nothing is shortened or dropped, two other routes are offered */
   function validate() {
     var today = bangkokToday();
     var res = { ok: true, state: "empty", field: null, ageIndex: -1, text: "", info: "", url: B.page, bypass: B.page, why: "", nights: 0, total: 0 };
@@ -201,7 +167,6 @@
       if (n < 1) return fail("out", T.msgOrder);
     }
     res.nights = n;
-    /* more guests than one search takes: said at once, before any age is asked for. Only the dates travel. */
     if (res.total > (B.maxGuests || 99)) {
       res.ok = false; res.state = "unsupported"; res.why = "party";
       res.text = fmt(T.msgParty, { n: B.maxGuests, m: res.total });
@@ -213,7 +178,6 @@
       if (v === "" || v === null || isNaN(parseInt(v, 10)) || +v < 0 || +v > B.maxChildAge) return fail("age", T.msgAges, i);
       ages.push(parseInt(v, 10));
     }
-    /* more nights than the booking page showed it takes: the dates and guests travel as entered, nothing is shortened */
     if (n > B.maxNights) {
       res.ok = false; res.state = "unsupported"; res.why = "long";
       res.text = fmt(T.msgLong, { n: B.maxNights, m: n });
@@ -227,7 +191,6 @@
     } else res.info = guestsText(adults, ages);
     return res;
   }
-
   function datesLine() {
     var a = stay.in, b = stay.out;
     if (!a && !b) return T.notSelected;
@@ -235,7 +198,6 @@
     if (nightsBetween(a, b) < 1) return T.msgOrder;
     return fmt(T.datesRange, { r: showRange(a, b), n: nightsText(nightsBetween(a, b)) });
   }
-
   function paintFit(p, res) {
     if (!p.fit) return;
     var over = p.suiteMax && res.total > p.suiteMax && res.state !== "unsupported";
@@ -253,7 +215,6 @@
     }
     p.fit.appendChild(d.createTextNode(T.fitRooms));
   }
-
   function paintPlanners(note) {
     var today = bangkokToday();
     var res = validate();
@@ -275,12 +236,9 @@
           if (sel.value !== want) sel.value = want;
         });
       }
-      /* Set only when it changes. Writing a date field's min again, even to the same value, makes the browser
-         rebuild the field, and a year being typed digit by digit is lost half way. */
       var outMin = stay.in && !isNaN(toUTC(stay.in)) ? addDays(stay.in, 1) : addDays(today, 1);
       if (p.inp.min !== today) p.inp.min = today;
       if (p.out.min !== outMin) p.out.min = outMin;
-      /* until the details are valid the link stays a plain link to the booking page */
       p.go.href = res.ok ? withRoom(res.url, p.room) : B.page;
       [p.inp, p.out].forEach(function (el) { el.removeAttribute("aria-invalid"); el.closest(".field").classList.remove("is-invalid"); });
       if (p.msg) {
@@ -305,7 +263,6 @@
     });
     return res;
   }
-
   function showError(p, res) {
     var el = res.field === "in" ? p.inp : res.field === "out" ? p.out : p.ages[res.ageIndex];
     if (!el) return;
@@ -314,8 +271,6 @@
     if (p.msg) { p.msg.className = "planner__msg is-error"; p.msg.textContent = res.text; }
     el.focus();
   }
-
-  /* one child with no age yet must not look the same as no children */
   var staySig = function () { return JSON.stringify([stay.in, stay.out, stay.adults, stay.kids]); };
   planners.forEach(function (p) {
     function read(changed) {
@@ -335,7 +290,6 @@
       saveStay();
       paintPlanners(note);
     }
-    /* a date field reports a finished date through "input" in some browsers and "change" in others */
     ["input", "change"].forEach(function (evt) {
       p.inp.addEventListener(evt, function () { read("in"); });
       p.out.addEventListener(evt, function () { read("out"); });
@@ -343,8 +297,6 @@
     p.ad.addEventListener("change", function () { read("ad"); });
     if (p.kids) p.kids.addEventListener("change", function () { read("kids"); });
     p.ages.forEach(function (sel) { sel.addEventListener("change", function () { read("age"); }); });
-    /* leaving for the booking page: the address is set at the moment of the click, so a link painted
-       for an earlier state can never be followed, and a second click straight after is ignored */
     var leave = function (ev, link, url) {
       link.href = url;
       var now = Date.now();
@@ -355,7 +307,6 @@
       read("go");
       var res = validate();
       if (res.state === "unsupported") {
-        /* not an error to correct: show the two ways forward and put the keyboard on the first */
         ev.preventDefault(); paintPlanners();
         if (p.rBook) p.rBook.focus();
         return;
@@ -377,19 +328,12 @@
     p.form.addEventListener("submit", function (ev) { ev.preventDefault(); p.go.click(); });
   });
   if (planners.length) paintPlanners();
-  /* a page restored by the Back button shows the stay as it is now, not as it was when the page was left */
   addEventListener("pageshow", function (ev) {
     if (!ev.persisted || !planners.length) return;
     stay = loadStay();
     paintPlanners();
   });
-  /* a tab left open past midnight in Bangkok: the earliest date moves on, and a stay that has slipped into the past says so */
   d.addEventListener("visibilitychange", function () { if (!d.hidden && planners.length) paintPlanners(); });
-
-  /* Reaching the stay planner. A page that has a planner of its own (the home page, a suite page, rates,
-     how booking works) uses that one for every "Check dates" control: one planner on the page, and a
-     suite page keeps its suite. Every other page opens the planner as a sheet. Without this script the
-     controls are plain links: to the planner on the page, or to the hotel's booking page. */
   var planDialog = d.getElementById("plan-dialog");
   var dock = $("[data-dock]");
   var goDock = function () {
@@ -397,7 +341,6 @@
     dock.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
     var coarse = false;
     try { coarse = matchMedia("(pointer: coarse)").matches; } catch (e) {}
-    /* a keyboard lands in the first field; on a touch screen focusing a date field would open its picker unasked */
     var to = coarse ? (dock.hasAttribute("tabindex") ? dock : dock.closest("[tabindex]") || dock) : $("[data-in]", dock);
     if (to) to.focus({ preventScroll: true });
     return true;
@@ -406,7 +349,6 @@
     a.addEventListener("click", function (ev) { if (goDock()) ev.preventDefault(); });
   });
   $$("[data-open-planner]").forEach(function (a) {
-    /* the control opens the planner in the page, so it no longer says it opens a new tab */
     if ((dock && planners.length) || (canDialog && planDialog)) { var note = $("[data-newtab-note]", a); if (note) note.parentNode.removeChild(note); }
     a.addEventListener("click", function (ev) {
       if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.button) return;
@@ -414,7 +356,6 @@
       var from = a;
       if (menu && menu.open) {
         from = $("[data-open-menu]");
-        /* going to the planner on the page: the menu must not pull focus back to its button as it closes */
         if (dock && planners.length && dock.offsetParent !== null) openers = openers.filter(function (o) { return o.dlg !== menu; });
         menu.close();
       }
@@ -426,10 +367,6 @@
       }
     });
   });
-
-  /* ==================================================================== */
-  /* Header: menu, "More", progress line, language switch                  */
-  /* ==================================================================== */
   $$("[data-open-menu]").forEach(function (b) {
     b.addEventListener("click", function () {
       if (openDialog(d.getElementById("menu"), b)) return;
@@ -437,7 +374,6 @@
       if (nav) { nav.scrollIntoView(); nav.focus({ preventScroll: true }); }
     });
   });
-
   var moreBtn = $("[data-more]");
   if (moreBtn) {
     var panel = d.getElementById("more-panel");
@@ -453,7 +389,6 @@
       if (!panel.hidden && ev.relatedTarget && !moreBtn.parentNode.contains(ev.relatedTarget)) setMore(false);
     });
   }
-
   $$("[data-lang-switch]").forEach(function (a) {
     var base = a.getAttribute("href");
     var carry = function () { a.setAttribute("href", base + location.search + location.hash); };
@@ -464,7 +399,6 @@
       try { localStorage.setItem("gd:lang", a.getAttribute("hreflang")); } catch (e) {}
     });
   });
-
   var progress = $(".progress");
   var bar = $("[data-mcta]");
   var heroCta = $("[data-hero-cta]");
@@ -473,7 +407,6 @@
     var show;
     if (heroCta) show = heroCta.getBoundingClientRect().bottom < 60;
     else show = (window.scrollY || root.scrollTop) > 240;
-    /* while the page's own planner is on screen the bar would only point at what is already there */
     var dk = $("[data-dock]");
     if (show && dk && dk.offsetParent !== null) {
       var dr = dk.getBoundingClientRect();
@@ -485,7 +418,6 @@
     bar.classList.toggle("is-on", !!show);
   }
   function reserveBar() {
-    /* the width a classic scrollbar takes, so full-bleed parts can line up with the page column */
     root.style.setProperty("--sbw", Math.max(0, innerWidth - root.clientWidth) + "px");
     if (!bar) return;
     var small = !wideEnough("65em");
@@ -493,10 +425,6 @@
   }
   d.addEventListener("focusin", syncBar);
   d.addEventListener("focusout", function () { setTimeout(syncBar, 60); });
-
-  /* ==================================================================== */
-  /* Reveal on first view (measured, never dependent on an observer)       */
-  /* ==================================================================== */
   var pending = root.classList.contains("anim") ? $$(".reveal") : [];
   function revealPass(all) {
     if (!pending.length) return;
@@ -506,12 +434,10 @@
       return true;
     });
   }
-
   var lastPass = 0, trailing = null;
   function onScroll() {
     var now = Date.now();
     if (now - lastPass < 40) {
-      /* a single jump (an anchor link, a restored position) must not be lost to the throttle */
       if (!trailing) trailing = setTimeout(function () { trailing = null; onScroll(); }, 60);
       return;
     }
@@ -527,19 +453,12 @@
   addEventListener("resize", function () { lastPass = 0; onScroll(); reserveBar(); });
   addEventListener("load", function () { lastPass = 0; onScroll(); reserveBar(); });
   onScroll(); reserveBar();
-  /* a page that is never painted or scrolled must not keep content hidden */
   setTimeout(function () { if (d.visibilityState === "hidden") revealPass(true); }, 1500);
   setTimeout(function () { lastPass = 0; onScroll(); }, 600);
-
-  /* ==================================================================== */
-  /* Photographs: source sets, hero sequence, selector stage, viewer       */
-  /* ==================================================================== */
   var V = boot.viewer || {};
   var mediaBase = boot.mediaBase || "";
   function setFor(m, ext) { return (ext === "avif" ? m.wa : m.ww).map(function (w) { return mediaBase + m.f + "-" + w + "." + ext + " " + w + "w"; }).join(", "); }
   function jpgFor(m) { return mediaBase + m.f + "-" + m.j + ".jpg"; }
-
-  /* hero */
   var hero = $("[data-hero]");
   if (hero) {
     var slides = $$(".hero__slide", hero);
@@ -606,14 +525,11 @@
     paintPause();
     addEventListener("load", function () {
       setTimeout(function () {
-        /* a visitor who asked the browser to save data gets the first photograph only, until they ask for more */
         if (navigator.connection && navigator.connection.saveData) { playing = false; paintPause(); }
         if (playing) { hydrate(); tick(); }
       }, 1200);
     });
   }
-
-  /* selector */
   $$("[data-finder]").forEach(function (finder) {
     var tabs = $$(".finder__tab", finder);
     var wide = function () { return wideEnough("62.5em"); };
@@ -651,15 +567,12 @@
         t0.setAttribute("aria-expanded", "true"); d.getElementById(t0.getAttribute("aria-controls")).hidden = false;
       }
     }
-    /* a wide layout always shows one suite */
     addEventListener("resize", function () {
       if (wide() && !tabs.some(function (t) { return t.getAttribute("aria-expanded") === "true"; })) {
         tabs[0].setAttribute("aria-expanded", "true"); d.getElementById(tabs[0].getAttribute("aria-controls")).hidden = false;
       }
     });
   });
-
-  /* stage: thumbnails change the large photograph in place */
   $$("[data-stage]").forEach(function (stage) {
     var open = $("[data-stage-open]", stage), img = $("img", open), cap = $("[data-stage-cap]", stage), count = $("[data-stage-count]", stage);
     var thumbs = $$("[data-thumb]", stage);
@@ -670,14 +583,12 @@
       t.addEventListener("click", function () {
         var m = V[ids[i]];
         if (!m || (open.getAttribute("data-id") === ids[i] && !failed)) return;
-        /* only the latest choice may finish: a slow photograph can never arrive under a later one's caption */
         var mine = ++turn;
         failed = false;
         thumbs.forEach(function (x) { x.removeAttribute("aria-current"); });
         t.setAttribute("aria-current", "true");
         open.setAttribute("data-id", ids[i]);
         stage.classList.add("is-loading");
-        /* the photograph on show stays until its replacement is ready; the caption changes with the picture */
         var pic = img.parentNode;
         $$("source", pic).forEach(function (s) { s.srcset = setFor(m, s.type === "image/avif" ? "avif" : "webp"); });
         img.alt = m.alt; img.width = m.w; img.height = m.h;
@@ -695,15 +606,11 @@
       });
     });
   });
-
-  /* viewer */
   var viewer = d.getElementById("viewer");
   if (viewer && canDialog) {
     var vImg = $("[data-img]", viewer), vCap = $("[data-cap]", viewer), vLink = $("[data-link]", viewer), vCount = $("[data-count]", viewer);
     var vFail = $("[data-fail]", viewer), vRetry = $("[data-retry]", viewer), vFile = $("[data-file]", viewer);
     var items = [], at = 0, vTurn = 0;
-    /* the photograph is shown only once it has loaded for the choice still on screen, so a slow
-       one can never sit under another's caption; a failed one says so and offers two ways on */
     var arrived = function (mine, ok) {
       if (mine !== vTurn) return;
       viewer.classList.remove("is-loading");
@@ -728,7 +635,6 @@
       vImg.src = jpgFor(m);
       if (vImg.complete && vImg.naturalWidth) arrived(mine, true);
       vCap.textContent = m.cap;
-      /* "See this suite" is offered everywhere except on that suite's own page */
       var there = false;
       try { there = !!m.href && new URL(m.href, location.href).pathname === location.pathname; } catch (e) {}
       if (m.href && !there) { vLink.hidden = false; vLink.href = m.href; } else vLink.hidden = true;
@@ -783,10 +689,6 @@
       if (vFail) vFail.hidden = true;
     });
   }
-
-  /* ==================================================================== */
-  /* Compare: two suites side by side on narrow screens                    */
-  /* ==================================================================== */
   var cmp = $("[data-compare]");
   if (cmp) {
     var selA = $("[data-pick-a]"), selB = $("[data-pick-b]");
@@ -810,12 +712,10 @@
     $$("option", selA).forEach(function (o) { names[o.value] = o.textContent; });
     var saved = store.get("compare"), q = new URLSearchParams(location.search);
     var a0 = q.get("a") || (saved && saved[0]), b0 = q.get("b") || (saved && saved[1]);
-    /* an address that names an unknown suite, or the same suite twice, falls back to the first two different ones */
     if (slugs.indexOf(a0) >= 0) selA.value = a0;
     if (slugs.indexOf(b0) >= 0) selB.value = b0;
     if (selA.value === selB.value) selB.value = slugs.filter(function (s) { return s !== selA.value; })[0];
     var pair = [selA.value, selB.value];
-    /* rows that read the same in every column on show can be folded away, and brought back */
     var diffOn = false;
     var paintDiff = function () {
       if (!diffBtn) return;
@@ -829,7 +729,6 @@
       diffBtn.setAttribute("aria-pressed", diffOn ? "true" : "false");
       if (diffNote) diffNote.textContent = !diffOn ? "" : hidden ? fmt(diffNote.getAttribute(hidden === 1 ? "data-one" : "data-many"), { n: hidden }) : diffNote.getAttribute("data-none");
     };
-    /* choosing the suite the other control already holds swaps the two, so neither choice is lost */
     var onPick = function (changed, other, i) {
       var swapped = changed.value === other.value;
       if (swapped) other.value = pair[i];
@@ -846,7 +745,6 @@
     }
     paintCmp(false);
     paintDiff();
-    /* a link to this comparison, for someone else to open */
     var shareBtn = $("[data-compare-share]"), shareOut = $("[data-compare-share-out]");
     if (shareBtn) shareBtn.addEventListener("click", function () {
       var u = location.href;
@@ -859,27 +757,28 @@
       else say("data-failed", true);
     });
   }
-
-  /* ==================================================================== */
-  /* Neighbourhood map                                                     */
-  /* A fixed frame (the drawn plate) that can be moved and zoomed inside   */
-  /* its window. The picture is scaled; the markers are moved with it but  */
-  /* keep their size. Nothing is fetched from anywhere else unless the     */
-  /* visitor chooses the satellite view.                                   */
-  /* ==================================================================== */
   $$("[data-map]").forEach(function (el) {
-    var view = $("[data-view]", el), stage = $("[data-map-stage]", el), raster = $("[data-raster]", el), pinsEl = $("[data-pins]", el), plate = $(".mapplate__img", el);
-    if (!view || !stage || !raster || !pinsEl || !plate) return;
+    var view = $("[data-view]", el), stage = $("[data-map-stage]", el), raster = $("[data-raster]", el), pinsEl = $("[data-pins]", el);
+    if (!view || !stage || !raster || !pinsEl) return;
     var num = function (k, dflt) { var v = parseFloat(el.getAttribute(k)); return isNaN(v) ? dflt : v; };
-    var ratio = num("data-ratio", 4 / 3), ground = num("data-ground", 2000), hx = num("data-hx", 0.5), hy = num("data-hy", 0.5);
-    var FINEST = 0.55; /* metres of ground to one CSS pixel at the closest zoom */
-    var vw = 0, vh = 0, bw = 0, bh = 0, s = 1, sMax = 1, cx = hx, cy = hy, tx = 0, ty = 0, home = null, anim = 0, settleT = 0, live = false;
+    var list = function (k) { return (el.getAttribute(k) || "").split(";"); };
+    var ratio = num("data-ratio", 4 / 3), ground = num("data-ground", 2000), hx = num("data-hx", 0.5), hy = num("data-hy", 0.5), open = num("data-open", 1);
+    var FINEST = 0.55;
+    var UP = 1.6;
+    var vw = 0, vh = 0, bw = 0, bh = 0, s = 1, sWas = 1, sMax = 1, cx = hx, cy = hy, tx = 0, ty = 0, home = null, anim = 0, settleT = 0, live = false;
     var pins = $$(".pin[data-pin]", pinsEl);
     var zIn = $('[data-zoom="in"]', el), zOut = $('[data-zoom="out"]', el), zHome = $('[data-zoom="reset"]', el);
     var clamp = function (v, lo, hi) { return Math.min(hi, Math.max(lo, v)); };
     var at = function (p) { return [parseFloat(p.style.getPropertyValue("--x")) / 100, parseFloat(p.style.getPropertyValue("--y")) / 100]; };
-    var afterMove = []; /* what else has to follow the map: the satellite squares */
-
+    var afterMove = [];
+    var LV = list("data-levels").filter(Boolean).map(function (t) { var a = t.split(/[:,]/).map(Number); return { k: a[0], c0: a[1], r0: a[2], cols: a[3], rows: a[4] }; });
+    var tileW = function (k) { return 0.4 / Math.pow(2, k); }, tileH = function (k) { return 8 / 15 / Math.pow(2, k); };
+    var ZONE = LV.map(function (L) { return [L.c0 * tileW(L.k), L.r0 * tileH(L.k), (L.c0 + L.cols) * tileW(L.k), (L.r0 + L.rows) * tileH(L.k)]; });
+    var TOP = LV.length - 1, WHOLE = 0;
+    LV.forEach(function (L, i) { if (ZONE[i][0] <= 0.001 && ZONE[i][2] >= 0.999) WHOLE = i; });
+    var inside = function (z, x, y) { return x >= z[0] && x <= z[2] && y >= z[1] && y <= z[3]; };
+    var capAt = function (x, y) { var k = TOP; while (k > WHOLE && !inside(ZONE[k], x, y)) k--; return k === TOP ? sMax : Math.min(sMax, 640 * Math.pow(2, k) * UP / bw); };
+    var roomFor = function (S) { var k = TOP; while (k > WHOLE && bw * S <= 640 * Math.pow(2, k - 1) * UP) k--; return ZONE[k]; };
     function measure() {
       vw = view.clientWidth; vh = view.clientHeight;
       if (!vw || !vh) return false;
@@ -890,27 +789,24 @@
     }
     function apply() {
       s = clamp(s, 1, sMax);
-      var w = bw * s, h = bh * s;
-      tx = clamp(vw / 2 - cx * w, vw - w, 0); ty = clamp(vh / 2 - cy * h, vh - h, 0);
+      if (LV.length && s > sWas + 1e-6) s = Math.min(s, Math.max(sWas, capAt(cx, cy)));
+      sWas = s;
+      var w = bw * s, h = bh * s, R = LV.length ? roomFor(s) : [0, 0, 1, 1];
+      tx = clamp(vw / 2 - cx * w, Math.min(vw - R[2] * w, -R[0] * w), -R[0] * w); ty = clamp(vh / 2 - cy * h, Math.min(vh - R[3] * h, -R[1] * h), -R[1] * h);
       cx = (vw / 2 - tx) / w; cy = (vh / 2 - ty) / h;
       var move = "translate(" + tx.toFixed(2) + "px," + ty.toFixed(2) + "px)";
       raster.style.transform = move + " scale(" + s.toFixed(4) + ")";
       pinsEl.style.width = w.toFixed(2) + "px"; pinsEl.style.height = h.toFixed(2) + "px"; pinsEl.style.transform = move;
-      el.classList.toggle("is-zoomed", s > 1.02);
-      if (zIn) zIn.disabled = s >= sMax - 0.001;
+      el.classList.toggle("is-zoomed", s > open * 1.03);
+      el.classList.toggle("is-far", s < open * 0.7);
+      if (zIn) zIn.disabled = s >= capAt(cx, cy) - 0.001;
       if (zOut) zOut.disabled = s <= 1.001;
-      if (zHome) zHome.disabled = !!home && s <= 1.001 && Math.abs(tx - home.tx) < 1 && Math.abs(ty - home.ty) < 1;
-      /* a card that is on show follows its marker */
+      if (zHome) zHome.disabled = !!home && Math.abs(s - home.s) < 0.005 && Math.abs(tx - home.tx) < 1 && Math.abs(ty - home.ty) < 1;
       pins.forEach(function (p) { if (shows(p)) placeCard(p); });
       afterMove.forEach(function (fn) { fn(false); });
       clearTimeout(settleT); settleT = setTimeout(settle, 140);
     }
-    /* Where a marker's card goes. On a wide map it sits beside its marker, above or below: whichever side
-       holds it whole, keeps clear of the hotel's own label and of the controls, and covers the fewest other
-       markers. On a small map (a phone) it lies along the bottom edge or the top one, clear of its own marker
-       and over as few of the others as it can be, so it is always whole. */
-    var hotelName = $(".pin-label", pinsEl);
-    var keepClear = $$(".pin-label, .pin--hotel", pinsEl).concat($$(".mapseg, .mapzoom", el)), EDGE = 8, GAP = 10;
+    var keepClear = $$(".pin--hotel", pinsEl).concat($$(".mapseg, .mapzoom", el)), EDGE = 8, GAP = 10;
     var headEl = $(".site-header"), barEl = $(".mcta");
     var shows = function (p) { return p.getAttribute("aria-pressed") === "true" || p.classList.contains("is-lit") || p.classList.contains("is-over") || p === d.activeElement; };
     function placeCard(p) {
@@ -922,10 +818,8 @@
       p.classList.toggle("is-docked", dock);
       var vr = view.getBoundingClientRect(), cw = card.offsetWidth, ch = card.offsetHeight;
       var X = cw > vw - 2 * EDGE ? (vw - cw) / 2 : clamp(px - cw / 2, EDGE, vw - EDGE - cw), Y;
-      /* the part of the window that can be seen: not under the page's header, not under the phone's booking
-         bar, not off the screen. If that part cannot hold the card, the whole window is used. */
       var lo = Math.max(0, (headEl ? headEl.getBoundingClientRect().bottom : 0) - vr.top);
-      var hi = Math.min(vh, (barEl && barEl.classList.contains("is-on") ? barEl.getBoundingClientRect().top : innerHeight) - vr.top);
+      var hi = Math.min(vh, (barEl && barEl.classList.contains("is-on") ? innerHeight - barEl.offsetHeight : innerHeight) - vr.top);
       if (hi - lo < ch + 2 * EDGE) { lo = 0; hi = vh; }
       var over = function (top) {
         var n = 0;
@@ -947,23 +841,10 @@
         p.classList.toggle("is-below", below);
         card.style.setProperty("--caret", clamp(px - X, 14, cw - 14).toFixed(1) + "px");
       }
-      if (hotelName) { var hb = hotelName.getBoundingClientRect(); p.classList.toggle("is-on-label", X < hb.right - vr.left && X + cw > hb.left - vr.left && Y < hb.bottom - vr.top && Y + ch > hb.top - vr.top); }
       var o = px - r + p.clientLeft, t = py - r + p.clientTop;
       card.style.setProperty("--cx", (X - o).toFixed(1) + "px"); card.style.setProperty("--cy", (Y - t).toFixed(1) + "px");
     }
-    /* once the map is at rest: a sharper drawing if it has been enlarged, and any satellite squares now in view */
-    var have = 0;
-    function settle() {
-      var need = bw * s * Math.min(window.devicePixelRatio || 1, 2);
-      var want = need > 1920 ? "data-large" : need > 1150 ? "data-mid" : "", rank = want === "data-large" ? 2 : want ? 1 : 0;
-      if (rank > have && (plate.naturalWidth || 0) * 1.2 < need) {
-        have = rank;
-        var url = el.getAttribute(want), probe = new Image();
-        probe.onload = function () { $$("source", plate.parentNode).forEach(function (so) { so.parentNode.removeChild(so); }); plate.removeAttribute("srcset"); plate.loading = "eager"; plate.src = url; };
-        probe.src = url;
-      }
-      afterMove.forEach(function (fn) { fn(true); });
-    }
+    function settle() { afterMove.forEach(function (fn) { fn(true); }); }
     function glide(S, X, Y) {
       cancelAnimationFrame(anim);
       S = clamp(S, 1, sMax);
@@ -978,43 +859,62 @@
       };
       anim = requestAnimationFrame(step);
     }
-    /* zoom about a point of the window, so that what is under the pointer or between two fingers stays there */
     function aim(S, px, py) {
-      S = clamp(S, 1, sMax);
       var fx = (px - tx) / (bw * s), fy = (py - ty) / (bh * s);
+      S = clamp(S, 1, S > s ? Math.max(s, capAt(fx, fy)) : sMax);
       return [S, fx - (px - vw / 2) / (bw * S), fy - (py - vh / 2) / (bh * S)];
     }
     function zoomAbout(S, px, py) { var g = aim(S, px, py); s = g[0]; cx = g[1]; cy = g[2]; apply(); }
-    /* bring a marker into the window if it is outside it or under the controls */
     function reveal(p) {
       var q = at(p), px = tx + q[0] * bw * s, py = ty + q[1] * bh * s;
-      if (px < 40 || px > vw - 40 || py < 96 || py > vh - 40) glide(s, q[0], q[1]);
+      if (s < open * 0.7) glide(open, q[0], q[1]);
+      else if (px < 40 || px > vw - 40 || py < (wideEnough("43.75em") ? 96 : 40) || py > vh - 40) glide(s, q[0], q[1]);
     }
     function start() {
       el.classList.add("is-live");
       if (!measure()) { el.classList.remove("is-live"); return; }
       view.tabIndex = 0; view.setAttribute("role", "group"); view.setAttribute("aria-label", view.getAttribute("data-label") || "");
-      if (!live) { live = true; s = 1; cx = hx; cy = hy; apply(); home = { tx: tx, ty: ty }; apply(); }
-      else apply();
+      if (!live) {
+        live = true;
+        $$("[data-wx]", pinsEl).forEach(function (p) { p.style.setProperty("--x", p.getAttribute("data-wx")); p.style.setProperty("--y", p.getAttribute("data-wy")); });
+        var c = core || [0, 0, 1, 1];
+        ox = bw > vw + 1 ? hx : (c[0] + c[2]) / 2;
+        oy = bh > vh + 1 ? hy : (c[1] + c[3]) / 2;
+        s = sWas = open; cx = ox; cy = oy; apply(); home = { s: s, tx: tx, ty: ty }; apply();
+      } else apply();
     }
-
-    /* dragging, and two fingers */
-    var pts = {}, pinch = 0, tap = null;
+    var ox = hx, oy = hy;
+    var goHome = function () { glide(open, ox, oy); };
+    var hint = $("[data-map-hint]", el), hints = {}, hintT = 0;
+    var say2 = function (which) {
+      if (!hint || (hints[which] || 0) >= 2) return;
+      hints[which] = (hints[which] || 0) + 1;
+      hint.textContent = hint.getAttribute("data-" + which) || hint.textContent;
+      hint.hidden = false; clearTimeout(hintT); hintT = setTimeout(function () { hint.hidden = true; }, 1900);
+    };
+    var pts = {}, pinch = 0, tap = null, engaged = false;
     view.addEventListener("pointerdown", function (ev) {
+      if (ev.pointerType === "mouse") engaged = true;
       if (!live || ev.button > 0 || (ev.target.closest && ev.target.closest("button, a"))) return;
       tap = Object.keys(pts).length ? null : { id: ev.pointerId, x: ev.clientX, y: ev.clientY };
-      pts[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+      pts[ev.pointerId] = { x: ev.clientX, y: ev.clientY, x0: ev.clientX, y0: ev.clientY, wait: ev.pointerType === "touch" && !el.classList.contains("is-zoomed") };
+      if (Object.keys(pts).length > 1) Object.keys(pts).forEach(function (k) { pts[k].wait = false; pts[k].page = false; });
       try { view.setPointerCapture(ev.pointerId); } catch (e) {}
       cancelAnimationFrame(anim); pinch = 0;
       el.classList.add("is-dragging");
     });
+    view.addEventListener("pointerleave", function (ev) { if (ev.pointerType === "mouse" && !Object.keys(pts).length) engaged = false; });
     view.addEventListener("pointermove", function (ev) {
       var p = pts[ev.pointerId];
       if (!p) return;
       var dx = ev.clientX - p.x, dy = ev.clientY - p.y, ids = Object.keys(pts);
       p.x = ev.clientX; p.y = ev.clientY;
       if (tap && (tap.id !== ev.pointerId || Math.abs(ev.clientX - tap.x) + Math.abs(ev.clientY - tap.y) > 6)) tap = null;
-      if (ids.length === 1) { cx -= dx / (bw * s); cy -= dy / (bh * s); apply(); return; }
+      if (ids.length === 1) {
+        if (p.wait) { var ax = Math.abs(ev.clientX - p.x0), ay = Math.abs(ev.clientY - p.y0); if (ax + ay < 10) return; p.wait = false; p.page = ay > ax; }
+        if (p.page) return;
+        cx -= dx / (bw * s); cy -= dy / (bh * s); apply(); return;
+      }
       var a = pts[ids[0]], b = pts[ids[1]], r = view.getBoundingClientRect(), dist = Math.hypot(a.x - b.x, a.y - b.y);
       cx -= dx / 2 / (bw * s); cy -= dy / 2 / (bh * s); apply();
       if (pinch && dist) zoomAbout(s * dist / pinch, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
@@ -1022,21 +922,19 @@
     });
     var lift = function (ev) {
       if (!pts[ev.pointerId]) return;
+      var alone = Object.keys(pts).length === 1;
       delete pts[ev.pointerId]; pinch = 0;
       if (!Object.keys(pts).length) el.classList.remove("is-dragging");
-      /* a tap on the map itself, not a drag, puts the open card away */
       if (ev.type === "pointerup" && tap && tap.id === ev.pointerId) unchoose();
+      if (ev.type === "pointercancel" && ev.pointerType === "touch" && alone) say2("touch");
       if (ev.type !== "lostpointercapture") tap = null;
     };
     view.addEventListener("pointerup", lift); view.addEventListener("pointercancel", lift); view.addEventListener("lostpointercapture", lift);
-    /* the wheel scrolls the page, as everywhere else; with Ctrl (or a pinch on a trackpad) it zooms the map */
-    var hint = $("[data-map-hint]", el), hints = 0, hintT = 0;
+    view.addEventListener("dragstart", function (ev) { ev.preventDefault(); });
+    view.addEventListener("touchmove", function (ev) { if (live && ev.touches && ev.touches.length > 1 && ev.cancelable) ev.preventDefault(); }, { passive: false });
     view.addEventListener("wheel", function (ev) {
       if (!live) return;
-      if (!(ev.ctrlKey || ev.metaKey)) {
-        if (hint && hints < 2 && sMax > 1.01) { hints++; hint.hidden = false; clearTimeout(hintT); hintT = setTimeout(function () { hint.hidden = true; }, 1600); }
-        return;
-      }
+      if (!(ev.ctrlKey || ev.metaKey || engaged)) { say2("wheel"); return; }
       ev.preventDefault();
       if (hint) hint.hidden = true;
       var r = view.getBoundingClientRect();
@@ -1049,32 +947,76 @@
     });
     view.addEventListener("keydown", function (ev) {
       if (!live || ev.target !== view || ev.altKey || ev.ctrlKey || ev.metaKey) return;
-      var k = ev.key, step = 0.2 / s, w = bw * s, h = bh * s;
-      if (k === "+" || k === "=") glide(s * 1.6, cx, cy);
+      var k = ev.key, step = 0.2 / s, w = bw * s, h = bh * s, R = roomFor(s);
+      if (k === "+" || k === "=") glide(Math.min(s * 1.6, Math.max(s, capAt(cx, cy))), cx, cy);
       else if (k === "-" || k === "_") glide(s / 1.6, cx, cy);
-      else if (k === "0") glide(1, hx, hy);
-      /* an arrow key moves the map only while there is map left on that side; otherwise it is the page's */
-      else if (k === "ArrowLeft" && tx < -0.5) glide(s, cx - step, cy);
-      else if (k === "ArrowRight" && tx > vw - w + 0.5) glide(s, cx + step, cy);
-      else if (k === "ArrowUp" && ty < -0.5) glide(s, cx, cy - step);
-      else if (k === "ArrowDown" && ty > vh - h + 0.5) glide(s, cx, cy + step);
+      else if (k === "0") goHome();
+      else if (k === "ArrowLeft" && tx < -R[0] * w - 0.5) glide(s, cx - step, cy);
+      else if (k === "ArrowRight" && tx > vw - R[2] * w + 0.5) glide(s, cx + step, cy);
+      else if (k === "ArrowUp" && ty < -R[1] * h - 0.5) glide(s, cx, cy - step);
+      else if (k === "ArrowDown" && ty > vh - R[3] * h + 0.5) glide(s, cx, cy + step);
       else return;
       ev.preventDefault();
     });
-    /* focus on a marker must never scroll the window's own box: the map moves instead */
     view.addEventListener("scroll", function () { if (view.scrollLeft || view.scrollTop) { view.scrollLeft = 0; view.scrollTop = 0; } });
     pinsEl.addEventListener("focusin", function (ev) { var p = ev.target.closest ? ev.target.closest(".pin[data-pin]") : null; if (p && live) reveal(p); });
-    if (zIn) zIn.addEventListener("click", function () { glide(s * 1.8, cx, cy); });
+    if (zIn) zIn.addEventListener("click", function () { glide(Math.min(s * 1.8, Math.max(s, capAt(cx, cy))), cx, cy); });
     if (zOut) zOut.addEventListener("click", function () { glide(s / 1.8, cx, cy); });
-    if (zHome) zHome.addEventListener("click", function () { glide(1, hx, hy); });
-
-    /* Markers. Pointing at one with a mouse, or reaching it with the keyboard, shows its card and lights its
-       row in the list beside the map. Choosing it (a click, or a tap) keeps the card open; choosing it again,
-       a tap on the map itself, or Escape puts the card away. A finger never counts as pointing: on a touch
-       screen that state would stay behind after the tap. */
+    if (zHome) zHome.addEventListener("click", goHome);
+    var squares = function (el2, url, has, alone) {
+      var lv = {};
+      return function (atRest) {
+        if (!awake || el2.hidden) return;
+        var fw = bw * s, K = clamp(Math.ceil(Math.log(fw / 640) / Math.LN2 - 1e-9), 0, TOP), w = bw * s, h = bh * s;
+        while (K > WHOLE && !inside(ZONE[K], cx, cy)) K--;
+        (alone ? [K] : [Math.min(K, WHOLE), K]).forEach(function (k) {
+          var L = LV[k], tw = tileW(k), th = tileH(k), box = lv[k];
+          if (!box) { box = lv[k] = { el: d.createElement("div"), have: {} }; box.el.style.cssText = "position:absolute;inset:0;z-index:" + k; el2.appendChild(box.el); }
+          var i0 = Math.max(L.c0, Math.floor(-tx / w / tw)), i1 = Math.min(L.c0 + L.cols - 1, Math.floor((vw - tx) / w / tw - 1e-9));
+          var j0 = Math.max(L.r0, Math.floor(-ty / h / th)), j1 = Math.min(L.r0 + L.rows - 1, Math.floor((vh - ty) / h / th - 1e-9));
+          for (var i = i0; i <= i1; i++) for (var j = j0; j <= j1; j++) (function (i, j) {
+            var id = i + "_" + j;
+            if (box.have[id] || (has && has[k].charAt((j - L.r0) * L.cols + i - L.c0) !== "1")) return;
+            box.have[id] = 1;
+            var t = new Image();
+            t.alt = ""; t.decoding = "async"; t.draggable = false;
+            t.style.left = (i * tw * 100).toFixed(4) + "%"; t.style.top = (j * th * 100).toFixed(4) + "%";
+            t.style.width = "calc(" + (tw * 100).toFixed(4) + "% + 0.5px)"; t.style.height = "calc(" + (th * 100).toFixed(4) + "% + 0.5px)";
+            t.onload = function () { t.classList.add("is-in"); };
+            t.onerror = function () { delete box.have[id]; if (t.parentNode) t.parentNode.removeChild(t); };
+            t.src = url + k + "/" + id + ".webp";
+            box.el.appendChild(t);
+          })(i, j);
+        });
+        Object.keys(lv).forEach(function (k) {
+          k = +k;
+          if (alone) lv[k].el.style.display = k === K ? "" : "none";
+          if (atRest && (k > K || (alone && k !== K) || (k < K && k !== Math.min(K, WHOLE) && k !== K - 1))) { el2.removeChild(lv[k].el); delete lv[k]; }
+        });
+      };
+    };
+    var layerOf = function (cls) { var x = d.createElement("div"); x.className = "mapplate__grid " + cls; raster.appendChild(x); return x; };
+    if (LV.length) {
+      var core = (el.getAttribute("data-core") || "0,0,1,1").split(",").map(Number), near = $("picture", raster);
+      if (near) { near.style.left = core[0] * 100 + "%"; near.style.top = core[1] * 100 + "%"; near.style.width = (core[2] - core[0]) * 100 + "%"; near.style.height = (core[3] - core[1]) * 100 + "%"; }
+      var baseEl = layerOf("mapplate__grid--base"), tilesBox = $("[data-tiles]", el), namesEl = layerOf("mapplate__grid--names");
+      if (tilesBox) raster.insertBefore(tilesBox, namesEl);
+      afterMove.push(squares(baseEl, el.getAttribute("data-base"), null, false));
+      afterMove.push(squares(namesEl, el.getAttribute("data-names"), list("data-have"), true));
+    }
+    var awake = false;
+    var wake = function () {
+      if (awake || !live || !LV.length) return;
+      var r = view.getBoundingClientRect();
+      if (r.bottom < -innerHeight || r.top > innerHeight * 2) return;
+      awake = true;
+      var under = new Image();
+      under.className = "mapplate__under"; under.alt = ""; under.decoding = "async"; under.draggable = false; under.src = el.getAttribute("data-under");
+      raster.insertBefore(under, raster.firstChild);
+      settle();
+    };
     var rowOf = function (id) { return $('[data-near="' + id + '"]') || $('.place[data-place="' + id + '"]'); };
     var choose = function (id) { pins.forEach(function (p) { p.setAttribute("aria-pressed", p.getAttribute("data-pin") === id ? "true" : "false"); }); };
-    /* a page that has a fuller list beside the map (the location page) answers the choice itself */
     var say = function (from, id) { if (from.dispatchEvent(new CustomEvent("gd:pin", { bubbles: true, cancelable: true, detail: { id: id } }))) choose(id); };
     var chosen = function () { return pins.filter(function (p) { return p.getAttribute("aria-pressed") === "true"; })[0]; };
     function unchoose() { var p = chosen(); if (p) say(p, ""); return !!p; }
@@ -1085,9 +1027,6 @@
       if (row) row.classList.toggle("is-lit", on);
       if (on) placeCard(p);
     };
-    /* A card belongs to its marker, so the mouse can rest on it while it is read. It must not shut off the
-       markers it lies over, though: when the mouse, on a card, comes to where another marker is, that marker
-       takes over. */
     pinsEl.addEventListener("pointermove", function (ev) {
       var own = ev.pointerType !== "touch" && ev.target.closest && ev.target.closest(".pin__card") ? ev.target.closest(".pin") : null;
       if (!own || own.classList.contains("is-docked")) return;
@@ -1097,7 +1036,6 @@
     });
     pins.forEach(function (p) {
       var id = p.getAttribute("data-pin"), row = rowOf(id);
-      /* on a small map the card lies along an edge, where the mouse could not follow it: there it opens on a click, not on pointing */
       p.addEventListener("pointerenter", function (ev) { if (ev.pointerType !== "touch" && wideEnough("43.75em")) point(p, true); });
       p.addEventListener("pointerleave", function () { point(p, false); });
       p.addEventListener("focus", function () { if (row) row.classList.add("is-lit"); placeCard(p); });
@@ -1120,16 +1058,13 @@
     el.__map = {
       reveal: function (id) { var p = byId(id); if (p && live) reveal(p); },
       choose: function (id) { choose(id); var p = byId(id); if (p) placeCard(p); },
-      /* a row in a list beside the map lights its marker: the card it shows is placed like any other */
       light: function (id, on) { var p = byId(id); if (!p) return; p.classList.toggle("is-lit", on); if (on) placeCard(p); },
       place: function (id) { var p = byId(id); if (p) placeCard(p); }
     };
-
-    /* ---- satellite view ---- */
     var satUrl = el.getAttribute("data-sat"), tilesEl = $("[data-tiles]", el);
     if (satUrl && tilesEl) {
-      var B = (el.getAttribute("data-bounds") || "").split(",").map(Number); /* west, south, east, north */
-      var namesImg = $("[data-names-img]", el), failBox = $("[data-sat-fail]", el), creditSat = $("[data-credit-sat]", el);
+      var B = (el.getAttribute("data-bounds") || "").split(",").map(Number);
+      var failBox = $("[data-sat-fail]", el), creditSat = $("[data-credit-sat]", el), baseGrid = $(".mapplate__grid--base", el);
       var zMin = num("data-sat-min", 16), zMax = num("data-sat-max", 18), layer = "map", levels = {}, got = 0, lost = 0, lastDraw = 0;
       var colOf = function (lon, z) { return (lon + 180) / 360 * Math.pow(2, z); };
       var rowAt = function (lat, z) { var r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z); };
@@ -1138,7 +1073,6 @@
         var now = Date.now();
         if (!atRest && now - lastDraw < 220) return;
         lastDraw = now;
-        /* the coarsest level whose squares are fine enough for the size the map is shown at */
         var need = bw * s * Math.min(window.devicePixelRatio || 1, 1.5) * 0.8, z = zMin;
         while (z < zMax && (colOf(B[2], z) - colOf(B[0], z)) * 256 < need) z++;
         var X0 = colOf(B[0], z), X1 = colOf(B[2], z), Y0 = rowAt(B[3], z), Y1 = rowAt(B[1], z), w = bw * s, h = bh * s;
@@ -1153,14 +1087,12 @@
           var t = new Image();
           t.alt = ""; t.decoding = "async"; t.referrerPolicy = "no-referrer"; t.draggable = false;
           t.style.left = ((i - X0) / (X1 - X0) * 100).toFixed(4) + "%"; t.style.top = ((j - Y0) / (Y1 - Y0) * 100).toFixed(4) + "%";
-          /* a hair wider than its square, so no seam shows between neighbours */
           t.style.width = "calc(" + (100 / (X1 - X0)).toFixed(4) + "% + 0.5px)"; t.style.height = "calc(" + (100 / (Y1 - Y0)).toFixed(4) + "% + 0.5px)";
           t.onload = function () { got++; t.classList.add("is-in"); };
           t.onerror = function () { lost++; delete lv.have[key]; if (t.parentNode) t.parentNode.removeChild(t); if (failBox && layer === "sat" && !got && lost >= 3) failBox.hidden = false; };
           t.src = satUrl.replace("{z}", z).replace("{x}", i).replace("{y}", j);
           lv.box.appendChild(t);
         })(i, j);
-        /* keep this level and the coarsest one beneath it; let go of the rest */
         if (atRest) Object.keys(levels).forEach(function (k) { if (+k !== z && +k !== zMin) { tilesEl.removeChild(levels[k].box); delete levels[k]; } });
       };
       afterMove.push(draw);
@@ -1170,27 +1102,22 @@
         el.classList.toggle("is-sat", sat);
         $$("[data-layer][aria-pressed]", el).forEach(function (b2) { b2.setAttribute("aria-pressed", b2.getAttribute("data-layer") === next ? "true" : "false"); });
         tilesEl.hidden = !sat;
-        if (namesImg) { namesImg.hidden = !sat; if (sat && !namesImg.getAttribute("src")) namesImg.src = el.getAttribute("data-names"); }
+        if (baseGrid) baseGrid.hidden = sat;
         if (creditSat) creditSat.hidden = !sat;
         if (failBox) failBox.hidden = true;
-        if (sat) { got = 0; lost = 0; draw(true); }
-        /* the "Back to the map" button has just gone: hand the keyboard to the view switch */
+        if (sat) { got = 0; lost = 0; draw(true); } else settle();
         if (from && !from.hasAttribute("aria-pressed")) { var seg = $('[data-layer="' + next + '"][aria-pressed]', el); if (seg) seg.focus(); }
       };
       $$("[data-layer]", el).forEach(function (b2) { b2.addEventListener("click", function () { setLayer(b2.getAttribute("data-layer"), b2); }); });
     }
-
     start();
-    /* once the page has been scrolled, an open card is set again inside the part of the map that can now be seen */
-    var scrollT = 0;
-    addEventListener("scroll", function () { clearTimeout(scrollT); scrollT = setTimeout(function () { if (live) pins.forEach(function (p) { if (shows(p)) placeCard(p); }); }, 140); }, { passive: true });
-    addEventListener("resize", function () { if (live) { if (measure()) apply(); } else start(); });
-    addEventListener("load", function () { if (live) { if (measure()) apply(); } else start(); });
+    wake();
+    var again = function () { if (live) pins.forEach(function (p) { if (shows(p)) placeCard(p); }); }, scrollT = 0;
+    addEventListener("scroll", function () { wake(); clearTimeout(scrollT); scrollT = setTimeout(again, 140); }, { passive: true });
+    if (barEl && window.MutationObserver) new MutationObserver(again).observe(barEl, { attributes: true, attributeFilter: ["class"] });
+    addEventListener("resize", function () { if (live) { if (measure()) apply(); } else start(); wake(); });
+    addEventListener("load", function () { if (live) { if (measure()) apply(); } else start(); wake(); });
   });
-
-  /* ==================================================================== */
-  /* Location explorer: the list beside the map                            */
-  /* ==================================================================== */
   var ex = $("[data-explorer]");
   if (ex) {
     var chips = $$("[data-filter]", ex), rows = $$(".place", ex), pins = $$("[data-pin]", ex), countEl = $("[data-count]", ex);
@@ -1220,8 +1147,6 @@
         more.hidden = !on;
         if (on && from === "pin") {
           if (r.hidden) filterTo("all");
-          /* with the list beside the map, go to the row; with the list below it (a phone), stay on the map,
-             where the marker now shows its card, and leave the row open for when the visitor scrolls down */
           if (wideEnough("62.5em")) {
             btn.focus({ preventScroll: true });
             var rr = r.getBoundingClientRect();
@@ -1241,7 +1166,6 @@
     rows.forEach(function (r) {
       var pin = pins.filter(function (p) { return p.getAttribute("data-pin") === r.getAttribute("data-place"); })[0];
       $(".place__btn", r).addEventListener("click", function () { choose(r.getAttribute("data-place"), "list"); });
-      /* pointing at a row lights its marker, so the two can be matched without numbers */
       if (pin) {
         var light = function (on) { return function () { if (exMap) exMap.light(pin.getAttribute("data-pin"), on); else pin.classList.toggle("is-lit", on); }; };
         r.addEventListener("pointerenter", function (ev) { if (ev.pointerType !== "touch") light(true)(); }); r.addEventListener("pointerleave", light(false));
@@ -1252,8 +1176,6 @@
     rows.forEach(function (r) { $(".place__more", r).hidden = true; $(".place__btn", r).setAttribute("aria-expanded", "false"); });
     filterTo("all");
   }
-
-  /* the comparison box is a tab stop only while it really scrolls */
   $$(".table-scroll").forEach(function (box) {
     var label = box.getAttribute("aria-label") || "";
     var fit = function () {
@@ -1264,8 +1186,6 @@
     addEventListener("resize", fit);
     addEventListener("load", fit);
   });
-
-  /* near-by rows on the home page: pointing at one lights its marker and shows its card; choosing one keeps it */
   $$("[data-near]").forEach(function (li) {
     var id = li.getAttribute("data-near"), pin = $('.pin[data-pin="' + id + '"]');
     if (!pin) return;
@@ -1274,8 +1194,6 @@
     li.addEventListener("pointerenter", function (ev) { if (ev.pointerType !== "touch") on(); }); li.addEventListener("pointerleave", off);
     li.addEventListener("click", function () { if (!api) return; api.choose(pin.getAttribute("aria-pressed") === "true" ? "" : id); api.reveal(id); });
   });
-
-  /* copy the address */
   $$("[data-copy]").forEach(function (b) {
     var status = d.getElementById(b.getAttribute("aria-describedby") || "") || $("[data-copy-status]", b.parentNode.parentNode);
     b.addEventListener("click", function () {
@@ -1285,7 +1203,6 @@
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, bad); else bad();
     });
   });
-
   var openFromHash = function () {
     var id = "";
     try { id = decodeURIComponent((location.hash || "").slice(1)); } catch (e) {}
@@ -1294,10 +1211,6 @@
   };
   addEventListener("hashchange", openFromHash);
   openFromHash();
-
-  /* ==================================================================== */
-  /* Gallery filter                                                        */
-  /* ==================================================================== */
   var gal = $("[data-gallery]");
   if (gal) {
     var gChips = $$("[data-filter]", gal), figs = $$(".shot", gal), gCount = $("[data-count]", gal);
@@ -1322,10 +1235,6 @@
     gChips.forEach(function (c) { c.addEventListener("click", function () { apply(c.getAttribute("data-filter"), true); }); });
     apply(new URLSearchParams(location.search).get("filter") || "all", false);
   }
-
-  /* ==================================================================== */
-  /* Enquiry composer: writes a message here, sends nothing                */
-  /* ==================================================================== */
   var enq = $("[data-enquiry]");
   if (enq) {
     var outBox = $("[data-enquiry-out]"), pre = $("[data-enquiry-text]"), copyBtn = $("[data-enquiry-copy]"), mailBtn = $("[data-enquiry-mail]"), eStatus = $("[data-enquiry-status]");
@@ -1369,28 +1278,23 @@
       if (val("phone")) lines.push(val("phone"));
       var text = lines.join("\n");
       pre.textContent = text;
-      /* mail handlers cut very long addresses, so a long message opens the app with its subject only */
       var subject = encodeURIComponent(L.mailSubject + ": " + (L.intents[intent] || intent));
       var body = encodeURIComponent(text.replace(/\n/g, "\r\n"));
       var mailBase = "mailto:" + enq.getAttribute("data-to") + "?subject=" + subject;
       mailLong = mailBase.length + 6 + body.length > 1900;
       mailBtn.href = mailLong ? mailBase : mailBase + "&body=" + body;
-      /* said before the email app is opened, not after: a long message travels by copy and paste */
       if (longNote) longNote.hidden = !mailLong;
       eStatus.className = "status"; eStatus.textContent = "";
       outBox.hidden = false;
       outBox.focus();
     };
-    /* the form has no submit button and no address to submit to: preparing is a button press, or Enter in a one-line field */
     enq.addEventListener("submit", prepare);
     var prepBtn = $("[data-enquiry-prepare]", enq);
     if (prepBtn) prepBtn.addEventListener("click", prepare);
     enq.addEventListener("keydown", function (ev) {
       if (ev.key === "Enter" && ev.target && ev.target.tagName === "INPUT" && ev.target.type !== "radio") prepare(ev);
     });
-    /* an edited form withdraws the earlier message, so what is copied is always what is shown in the form */
     var withdraw = function (ev) {
-      /* typing reports itself through "input"; "change" is listened to only for the controls that may not (a select, a radio, a date) */
       if (ev && ev.type === "change" && ev.target && ev.target.tagName !== "SELECT" && !/^(radio|date)$/.test(ev.target.type || "")) return;
       outBox.hidden = true; eStatus.textContent = "";
     };
@@ -1400,12 +1304,10 @@
     };
     copyBtn.addEventListener("click", function () {
       var ok = function () { eStatus.className = "status is-ok"; eStatus.textContent = L.copied; };
-      /* no clipboard, or permission refused: the text is selected so the keyboard or a long press can copy it */
       var bad = function () { selectText(); eStatus.className = "status is-error"; eStatus.textContent = L.copyFailed; };
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(pre.textContent).then(ok, bad); else bad();
     });
     mailBtn.addEventListener("click", function () { eStatus.className = "status"; eStatus.textContent = mailLong ? L.mailLong : L.mailHint; });
-    /* each subject suggests what the hotel will need to know */
     var prompt = $("[data-enquiry-prompt]");
     var paintPrompt = function () {
       if (!prompt) return;
@@ -1418,7 +1320,6 @@
     if (pre0 && enq.elements.intent) $$('input[name="intent"]', enq).forEach(function (r) { if (r.value === pre0) r.checked = true; });
     var su = new URLSearchParams(location.search).get("suite");
     if (su && enq.elements.suite) $$("option", enq.elements.suite).forEach(function (o) { if (o.getAttribute("data-slug") === su) enq.elements.suite.value = o.value; });
-    /* a stay the visitor set in a planner is offered here, editable: dates, and who is travelling */
     if (stayStored) {
       if (stay.in && stay.out && enq.elements.arrive && !enq.elements.arrive.value) { enq.elements.arrive.value = stay.in; enq.elements.depart.value = stay.out; }
       var partyEl = enq.elements.party, partyNote = $("[data-party-note]");
@@ -1429,7 +1330,6 @@
     }
     paintPrompt();
     hintDates();
-    /* typed words are never stored, so changing language would lose them: say so first */
     var typed = function () { return ["name", "email", "phone", "message"].some(function (n) { return val(n) !== ""; }); };
     $$("[data-lang-switch]").forEach(function (a) {
       a.addEventListener("click", function (ev) {

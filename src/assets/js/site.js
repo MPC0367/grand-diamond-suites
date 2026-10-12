@@ -861,24 +861,40 @@
   }
 
   /* ==================================================================== */
-  /* Neighbourhood map                                                     */
-  /* A fixed frame (the drawn plate) that can be moved and zoomed inside   */
-  /* its window. The picture is scaled; the markers are moved with it but  */
-  /* keep their size. Nothing is fetched from anywhere else unless the     */
-  /* visitor chooses the satellite view.                                   */
+  /* The map                                                               */
+  /* A drawing of central Bangkok (the frame) inside a window. It opens    */
+  /* with the hotel's neighbourhood filling the window, and can be moved   */
+  /* and zoomed, out to the whole frame and in to about half a metre to a  */
+  /* pixel. The drawing is scaled; the markers move with it but keep their */
+  /* size. Everything comes from this site, in squares ("tiles") fetched   */
+  /* as they come into view, unless the visitor chooses the satellite view.*/
   /* ==================================================================== */
   $$("[data-map]").forEach(function (el) {
-    var view = $("[data-view]", el), stage = $("[data-map-stage]", el), raster = $("[data-raster]", el), pinsEl = $("[data-pins]", el), plate = $(".mapplate__img", el);
-    if (!view || !stage || !raster || !pinsEl || !plate) return;
+    var view = $("[data-view]", el), stage = $("[data-map-stage]", el), raster = $("[data-raster]", el), pinsEl = $("[data-pins]", el);
+    if (!view || !stage || !raster || !pinsEl) return;
     var num = function (k, dflt) { var v = parseFloat(el.getAttribute(k)); return isNaN(v) ? dflt : v; };
-    var ratio = num("data-ratio", 4 / 3), ground = num("data-ground", 2000), hx = num("data-hx", 0.5), hy = num("data-hy", 0.5);
+    var list = function (k) { return (el.getAttribute(k) || "").split(";"); };
+    var ratio = num("data-ratio", 4 / 3), ground = num("data-ground", 2000), hx = num("data-hx", 0.5), hy = num("data-hy", 0.5), open = num("data-open", 1);
     var FINEST = 0.55; /* metres of ground to one CSS pixel at the closest zoom */
-    var vw = 0, vh = 0, bw = 0, bh = 0, s = 1, sMax = 1, cx = hx, cy = hy, tx = 0, ty = 0, home = null, anim = 0, settleT = 0, live = false;
+    var UP = 1.6;      /* a level of the drawing is never shown at more than this many times its own size */
+    var vw = 0, vh = 0, bw = 0, bh = 0, s = 1, sWas = 1, sMax = 1, cx = hx, cy = hy, tx = 0, ty = 0, home = null, anim = 0, settleT = 0, live = false;
     var pins = $$(".pin[data-pin]", pinsEl);
     var zIn = $('[data-zoom="in"]', el), zOut = $('[data-zoom="out"]', el), zHome = $('[data-zoom="reset"]', el);
     var clamp = function (v, lo, hi) { return Math.min(hi, Math.max(lo, v)); };
     var at = function (p) { return [parseFloat(p.style.getPropertyValue("--x")) / 100, parseFloat(p.style.getPropertyValue("--y")) / 100]; };
-    var afterMove = []; /* what else has to follow the map: the satellite squares */
+    var afterMove = []; /* what else has to follow the map: its squares, and the satellite ones */
+    /* The levels of the drawing: level k is the frame 640 x 2^k pixels wide, cut into squares of 256. The first
+       four cover the frame; the deepest two cover its middle only (ZONE, in fractions of the frame). */
+    var LV = list("data-levels").filter(Boolean).map(function (t) { var a = t.split(/[:,]/).map(Number); return { k: a[0], c0: a[1], r0: a[2], cols: a[3], rows: a[4] }; });
+    var tileW = function (k) { return 0.4 / Math.pow(2, k); }, tileH = function (k) { return 8 / 15 / Math.pow(2, k); };
+    var ZONE = LV.map(function (L) { return [L.c0 * tileW(L.k), L.r0 * tileH(L.k), (L.c0 + L.cols) * tileW(L.k), (L.r0 + L.rows) * tileH(L.k)]; });
+    var TOP = LV.length - 1, WHOLE = 0;
+    LV.forEach(function (L, i) { if (ZONE[i][0] <= 0.001 && ZONE[i][2] >= 0.999) WHOLE = i; });
+    var inside = function (z, x, y) { return x >= z[0] && x <= z[2] && y >= z[1] && y <= z[3]; };
+    /* how far in the map may go at a place: as far as the deepest level drawn there allows */
+    var capAt = function (x, y) { var k = TOP; while (k > WHOLE && !inside(ZONE[k], x, y)) k--; return k === TOP ? sMax : Math.min(sMax, 640 * Math.pow(2, k) * UP / bw); };
+    /* and, at a zoom, where it may be moved to: the part of the frame drawn finely enough for that zoom */
+    var roomFor = function (S) { var k = TOP; while (k > WHOLE && bw * S <= 640 * Math.pow(2, k - 1) * UP) k--; return ZONE[k]; };
 
     function measure() {
       vw = view.clientWidth; vh = view.clientHeight;
@@ -890,27 +906,32 @@
     }
     function apply() {
       s = clamp(s, 1, sMax);
-      var w = bw * s, h = bh * s;
-      tx = clamp(vw / 2 - cx * w, vw - w, 0); ty = clamp(vh / 2 - cy * h, vh - h, 0);
+      /* zooming in stops where the drawing has no more to show at that place */
+      if (LV.length && s > sWas + 1e-6) s = Math.min(s, Math.max(sWas, capAt(cx, cy)));
+      sWas = s;
+      var w = bw * s, h = bh * s, R = LV.length ? roomFor(s) : [0, 0, 1, 1];
+      tx = clamp(vw / 2 - cx * w, Math.min(vw - R[2] * w, -R[0] * w), -R[0] * w); ty = clamp(vh / 2 - cy * h, Math.min(vh - R[3] * h, -R[1] * h), -R[1] * h);
       cx = (vw / 2 - tx) / w; cy = (vh / 2 - ty) / h;
       var move = "translate(" + tx.toFixed(2) + "px," + ty.toFixed(2) + "px)";
       raster.style.transform = move + " scale(" + s.toFixed(4) + ")";
       pinsEl.style.width = w.toFixed(2) + "px"; pinsEl.style.height = h.toFixed(2) + "px"; pinsEl.style.transform = move;
-      el.classList.toggle("is-zoomed", s > 1.02);
-      if (zIn) zIn.disabled = s >= sMax - 0.001;
+      /* closer in than it opened: one finger then moves the map in every direction */
+      el.classList.toggle("is-zoomed", s > open * 1.03);
+      /* well out from where it opened, the places would lie on top of one another: only the hotel is marked */
+      el.classList.toggle("is-far", s < open * 0.7);
+      if (zIn) zIn.disabled = s >= capAt(cx, cy) - 0.001;
       if (zOut) zOut.disabled = s <= 1.001;
-      if (zHome) zHome.disabled = !!home && s <= 1.001 && Math.abs(tx - home.tx) < 1 && Math.abs(ty - home.ty) < 1;
+      if (zHome) zHome.disabled = !!home && Math.abs(s - home.s) < 0.005 && Math.abs(tx - home.tx) < 1 && Math.abs(ty - home.ty) < 1;
       /* a card that is on show follows its marker */
       pins.forEach(function (p) { if (shows(p)) placeCard(p); });
       afterMove.forEach(function (fn) { fn(false); });
       clearTimeout(settleT); settleT = setTimeout(settle, 140);
     }
     /* Where a marker's card goes. On a wide map it sits beside its marker, above or below: whichever side
-       holds it whole, keeps clear of the hotel's own label and of the controls, and covers the fewest other
+       holds it whole, keeps clear of the hotel's own marker and of the controls, and covers the fewest other
        markers. On a small map (a phone) it lies along the bottom edge or the top one, clear of its own marker
        and over as few of the others as it can be, so it is always whole. */
-    var hotelName = $(".pin-label", pinsEl);
-    var keepClear = $$(".pin-label, .pin--hotel", pinsEl).concat($$(".mapseg, .mapzoom", el)), EDGE = 8, GAP = 10;
+    var keepClear = $$(".pin--hotel", pinsEl).concat($$(".mapseg, .mapzoom", el)), EDGE = 8, GAP = 10;
     var headEl = $(".site-header"), barEl = $(".mcta");
     var shows = function (p) { return p.getAttribute("aria-pressed") === "true" || p.classList.contains("is-lit") || p.classList.contains("is-over") || p === d.activeElement; };
     function placeCard(p) {
@@ -923,9 +944,10 @@
       var vr = view.getBoundingClientRect(), cw = card.offsetWidth, ch = card.offsetHeight;
       var X = cw > vw - 2 * EDGE ? (vw - cw) / 2 : clamp(px - cw / 2, EDGE, vw - EDGE - cw), Y;
       /* the part of the window that can be seen: not under the page's header, not under the phone's booking
-         bar, not off the screen. If that part cannot hold the card, the whole window is used. */
+         bar, not off the screen. If that part cannot hold the card, the whole window is used. The bar slides
+         in and out, so it is taken where it will rest, not where it is caught on the way. */
       var lo = Math.max(0, (headEl ? headEl.getBoundingClientRect().bottom : 0) - vr.top);
-      var hi = Math.min(vh, (barEl && barEl.classList.contains("is-on") ? barEl.getBoundingClientRect().top : innerHeight) - vr.top);
+      var hi = Math.min(vh, (barEl && barEl.classList.contains("is-on") ? innerHeight - barEl.offsetHeight : innerHeight) - vr.top);
       if (hi - lo < ch + 2 * EDGE) { lo = 0; hi = vh; }
       var over = function (top) {
         var n = 0;
@@ -947,23 +969,11 @@
         p.classList.toggle("is-below", below);
         card.style.setProperty("--caret", clamp(px - X, 14, cw - 14).toFixed(1) + "px");
       }
-      if (hotelName) { var hb = hotelName.getBoundingClientRect(); p.classList.toggle("is-on-label", X < hb.right - vr.left && X + cw > hb.left - vr.left && Y < hb.bottom - vr.top && Y + ch > hb.top - vr.top); }
       var o = px - r + p.clientLeft, t = py - r + p.clientTop;
       card.style.setProperty("--cx", (X - o).toFixed(1) + "px"); card.style.setProperty("--cy", (Y - t).toFixed(1) + "px");
     }
-    /* once the map is at rest: a sharper drawing if it has been enlarged, and any satellite squares now in view */
-    var have = 0;
-    function settle() {
-      var need = bw * s * Math.min(window.devicePixelRatio || 1, 2);
-      var want = need > 1920 ? "data-large" : need > 1150 ? "data-mid" : "", rank = want === "data-large" ? 2 : want ? 1 : 0;
-      if (rank > have && (plate.naturalWidth || 0) * 1.2 < need) {
-        have = rank;
-        var url = el.getAttribute(want), probe = new Image();
-        probe.onload = function () { $$("source", plate.parentNode).forEach(function (so) { so.parentNode.removeChild(so); }); plate.removeAttribute("srcset"); plate.loading = "eager"; plate.src = url; };
-        probe.src = url;
-      }
-      afterMove.forEach(function (fn) { fn(true); });
-    }
+    /* once the map is at rest: the squares now in view, at the level that suits the zoom */
+    function settle() { afterMove.forEach(function (fn) { fn(true); }); }
     function glide(S, X, Y) {
       cancelAnimationFrame(anim);
       S = clamp(S, 1, sMax);
@@ -980,41 +990,72 @@
     }
     /* zoom about a point of the window, so that what is under the pointer or between two fingers stays there */
     function aim(S, px, py) {
-      S = clamp(S, 1, sMax);
       var fx = (px - tx) / (bw * s), fy = (py - ty) / (bh * s);
+      S = clamp(S, 1, S > s ? Math.max(s, capAt(fx, fy)) : sMax);
       return [S, fx - (px - vw / 2) / (bw * S), fy - (py - vh / 2) / (bh * S)];
     }
     function zoomAbout(S, px, py) { var g = aim(S, px, py); s = g[0]; cx = g[1]; cy = g[2]; apply(); }
     /* bring a marker into the window if it is outside it or under the controls */
     function reveal(p) {
       var q = at(p), px = tx + q[0] * bw * s, py = ty + q[1] * bh * s;
-      if (px < 40 || px > vw - 40 || py < 96 || py > vh - 40) glide(s, q[0], q[1]);
+      if (s < open * 0.7) glide(open, q[0], q[1]);   /* zoomed out, where the places are put away: back in, on this one */
+      /* the controls lie over the top of a wide map; on a small one they sit beneath it */
+      else if (px < 40 || px > vw - 40 || py < (wideEnough("43.75em") ? 96 : 40) || py > vh - 40) glide(s, q[0], q[1]);
     }
     function start() {
       el.classList.add("is-live");
       if (!measure()) { el.classList.remove("is-live"); return; }
       view.tabIndex = 0; view.setAttribute("role", "group"); view.setAttribute("aria-label", view.getAttribute("data-label") || "");
-      if (!live) { live = true; s = 1; cx = hx; cy = hy; apply(); home = { tx: tx, ty: ty }; apply(); }
-      else apply();
+      if (!live) {
+        live = true;
+        /* the markers are placed on the wide frame from here on; without the script they sit on the picture of the neighbourhood */
+        $$("[data-wx]", pinsEl).forEach(function (p) { p.style.setProperty("--x", p.getAttribute("data-wx")); p.style.setProperty("--y", p.getAttribute("data-wy")); });
+        /* Where the neighbourhood fills the window exactly (a laptop), it opens on the middle of it, which is the
+           picture the page showed until now. Where the window is narrower or shorter than that (a phone), it
+           opens with the hotel in the middle. */
+        var c = core || [0, 0, 1, 1];
+        ox = bw > vw + 1 ? hx : (c[0] + c[2]) / 2;
+        oy = bh > vh + 1 ? hy : (c[1] + c[3]) / 2;
+        s = sWas = open; cx = ox; cy = oy; apply(); home = { s: s, tx: tx, ty: ty }; apply();
+      } else apply();
     }
+    var ox = hx, oy = hy;
+    var goHome = function () { glide(open, ox, oy); };
 
+    /* One short line over the map says how to do what was just tried: the wheel, or one finger. */
+    var hint = $("[data-map-hint]", el), hints = {}, hintT = 0;
+    var say2 = function (which) {
+      if (!hint || (hints[which] || 0) >= 2) return;
+      hints[which] = (hints[which] || 0) + 1;
+      hint.textContent = hint.getAttribute("data-" + which) || hint.textContent;
+      hint.hidden = false; clearTimeout(hintT); hintT = setTimeout(function () { hint.hidden = true; }, 1900);
+    };
     /* dragging, and two fingers */
-    var pts = {}, pinch = 0, tap = null;
+    var pts = {}, pinch = 0, tap = null, engaged = false;
     view.addEventListener("pointerdown", function (ev) {
+      if (ev.pointerType === "mouse") engaged = true;   /* a click in the map: the wheel is the map's until the mouse leaves it */
       if (!live || ev.button > 0 || (ev.target.closest && ev.target.closest("button, a"))) return;
       tap = Object.keys(pts).length ? null : { id: ev.pointerId, x: ev.clientX, y: ev.clientY };
-      pts[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+      /* One finger, on a map no closer in than it opened, may be about to scroll the page. It is watched for
+         its first few pixels: if it sets off sideways it moves the map, if up or down it is left to the page. */
+      pts[ev.pointerId] = { x: ev.clientX, y: ev.clientY, x0: ev.clientX, y0: ev.clientY, wait: ev.pointerType === "touch" && !el.classList.contains("is-zoomed") };
+      if (Object.keys(pts).length > 1) Object.keys(pts).forEach(function (k) { pts[k].wait = false; pts[k].page = false; });
       try { view.setPointerCapture(ev.pointerId); } catch (e) {}
       cancelAnimationFrame(anim); pinch = 0;
       el.classList.add("is-dragging");
     });
+    view.addEventListener("pointerleave", function (ev) { if (ev.pointerType === "mouse" && !Object.keys(pts).length) engaged = false; });
     view.addEventListener("pointermove", function (ev) {
       var p = pts[ev.pointerId];
       if (!p) return;
       var dx = ev.clientX - p.x, dy = ev.clientY - p.y, ids = Object.keys(pts);
       p.x = ev.clientX; p.y = ev.clientY;
       if (tap && (tap.id !== ev.pointerId || Math.abs(ev.clientX - tap.x) + Math.abs(ev.clientY - tap.y) > 6)) tap = null;
-      if (ids.length === 1) { cx -= dx / (bw * s); cy -= dy / (bh * s); apply(); return; }
+      if (ids.length === 1) {
+        if (p.wait) { var ax = Math.abs(ev.clientX - p.x0), ay = Math.abs(ev.clientY - p.y0); if (ax + ay < 10) return; p.wait = false; p.page = ay > ax; }
+        if (p.page) return;
+        cx -= dx / (bw * s); cy -= dy / (bh * s); apply(); return;
+      }
       var a = pts[ids[0]], b = pts[ids[1]], r = view.getBoundingClientRect(), dist = Math.hypot(a.x - b.x, a.y - b.y);
       cx -= dx / 2 / (bw * s); cy -= dy / 2 / (bh * s); apply();
       if (pinch && dist) zoomAbout(s * dist / pinch, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
@@ -1022,21 +1063,26 @@
     });
     var lift = function (ev) {
       if (!pts[ev.pointerId]) return;
+      var alone = Object.keys(pts).length === 1;
       delete pts[ev.pointerId]; pinch = 0;
       if (!Object.keys(pts).length) el.classList.remove("is-dragging");
       /* a tap on the map itself, not a drag, puts the open card away */
       if (ev.type === "pointerup" && tap && tap.id === ev.pointerId) unchoose();
+      /* the browser took one finger's swipe to scroll the page: say how the map is moved instead */
+      if (ev.type === "pointercancel" && ev.pointerType === "touch" && alone) say2("touch");
       if (ev.type !== "lostpointercapture") tap = null;
     };
     view.addEventListener("pointerup", lift); view.addEventListener("pointercancel", lift); view.addEventListener("lostpointercapture", lift);
-    /* the wheel scrolls the page, as everywhere else; with Ctrl (or a pinch on a trackpad) it zooms the map */
-    var hint = $("[data-map-hint]", el), hints = 0, hintT = 0;
+    /* Safari will otherwise start a drag of its own (of a picture, or of nothing at all) part of the way through
+       a second drag of the map, and the map then stops following the mouse */
+    view.addEventListener("dragstart", function (ev) { ev.preventDefault(); });
+    /* two fingers on the map are the map's: they move and zoom it, and the page stays where it is */
+    view.addEventListener("touchmove", function (ev) { if (live && ev.touches && ev.touches.length > 1 && ev.cancelable) ev.preventDefault(); }, { passive: false });
+    /* The wheel scrolls the page, as everywhere else, until the map has been clicked or Ctrl is held (a pinch
+       on a trackpad counts as that); then it zooms the map, for as long as the mouse stays on it. */
     view.addEventListener("wheel", function (ev) {
       if (!live) return;
-      if (!(ev.ctrlKey || ev.metaKey)) {
-        if (hint && hints < 2 && sMax > 1.01) { hints++; hint.hidden = false; clearTimeout(hintT); hintT = setTimeout(function () { hint.hidden = true; }, 1600); }
-        return;
-      }
+      if (!(ev.ctrlKey || ev.metaKey || engaged)) { say2("wheel"); return; }
       ev.preventDefault();
       if (hint) hint.hidden = true;
       var r = view.getBoundingClientRect();
@@ -1049,24 +1095,89 @@
     });
     view.addEventListener("keydown", function (ev) {
       if (!live || ev.target !== view || ev.altKey || ev.ctrlKey || ev.metaKey) return;
-      var k = ev.key, step = 0.2 / s, w = bw * s, h = bh * s;
-      if (k === "+" || k === "=") glide(s * 1.6, cx, cy);
+      var k = ev.key, step = 0.2 / s, w = bw * s, h = bh * s, R = roomFor(s);
+      if (k === "+" || k === "=") glide(Math.min(s * 1.6, Math.max(s, capAt(cx, cy))), cx, cy);
       else if (k === "-" || k === "_") glide(s / 1.6, cx, cy);
-      else if (k === "0") glide(1, hx, hy);
+      else if (k === "0") goHome();
       /* an arrow key moves the map only while there is map left on that side; otherwise it is the page's */
-      else if (k === "ArrowLeft" && tx < -0.5) glide(s, cx - step, cy);
-      else if (k === "ArrowRight" && tx > vw - w + 0.5) glide(s, cx + step, cy);
-      else if (k === "ArrowUp" && ty < -0.5) glide(s, cx, cy - step);
-      else if (k === "ArrowDown" && ty > vh - h + 0.5) glide(s, cx, cy + step);
+      else if (k === "ArrowLeft" && tx < -R[0] * w - 0.5) glide(s, cx - step, cy);
+      else if (k === "ArrowRight" && tx > vw - R[2] * w + 0.5) glide(s, cx + step, cy);
+      else if (k === "ArrowUp" && ty < -R[1] * h - 0.5) glide(s, cx, cy - step);
+      else if (k === "ArrowDown" && ty > vh - R[3] * h + 0.5) glide(s, cx, cy + step);
       else return;
       ev.preventDefault();
     });
     /* focus on a marker must never scroll the window's own box: the map moves instead */
     view.addEventListener("scroll", function () { if (view.scrollLeft || view.scrollTop) { view.scrollLeft = 0; view.scrollTop = 0; } });
     pinsEl.addEventListener("focusin", function (ev) { var p = ev.target.closest ? ev.target.closest(".pin[data-pin]") : null; if (p && live) reveal(p); });
-    if (zIn) zIn.addEventListener("click", function () { glide(s * 1.8, cx, cy); });
+    if (zIn) zIn.addEventListener("click", function () { glide(Math.min(s * 1.8, Math.max(s, capAt(cx, cy))), cx, cy); });
     if (zOut) zOut.addEventListener("click", function () { glide(s / 1.8, cx, cy); });
-    if (zHome) zHome.addEventListener("click", function () { glide(1, hx, hy); });
+    if (zHome) zHome.addEventListener("click", goHome);
+
+    /* ---- the drawing, in squares ----
+       Two layers of squares over a small picture of the whole frame: the drawing itself, and the names (one
+       set for each language, on a clear ground, which also lie over the satellite images). A square is asked
+       for when it comes into view, at the level whose size suits the zoom; levels already fetched stay
+       underneath, so the map is never bare while a finer one arrives. */
+    var squares = function (el2, url, has, alone) {
+      var lv = {};
+      return function (atRest) {
+        if (!awake || el2.hidden) return;
+        var fw = bw * s, K = clamp(Math.ceil(Math.log(fw / 640) / Math.LN2 - 1e-9), 0, TOP), w = bw * s, h = bh * s;
+        /* no deeper than the drawing goes where the window is */
+        while (K > WHOLE && !inside(ZONE[K], cx, cy)) K--;
+        (alone ? [K] : [Math.min(K, WHOLE), K]).forEach(function (k) {
+          var L = LV[k], tw = tileW(k), th = tileH(k), box = lv[k];
+          if (!box) { box = lv[k] = { el: d.createElement("div"), have: {} }; box.el.style.cssText = "position:absolute;inset:0;z-index:" + k; el2.appendChild(box.el); }
+          var i0 = Math.max(L.c0, Math.floor(-tx / w / tw)), i1 = Math.min(L.c0 + L.cols - 1, Math.floor((vw - tx) / w / tw - 1e-9));
+          var j0 = Math.max(L.r0, Math.floor(-ty / h / th)), j1 = Math.min(L.r0 + L.rows - 1, Math.floor((vh - ty) / h / th - 1e-9));
+          for (var i = i0; i <= i1; i++) for (var j = j0; j <= j1; j++) (function (i, j) {
+            var id = i + "_" + j;
+            if (box.have[id] || (has && has[k].charAt((j - L.r0) * L.cols + i - L.c0) !== "1")) return;
+            box.have[id] = 1;
+            var t = new Image();
+            t.alt = ""; t.decoding = "async"; t.draggable = false;
+            t.style.left = (i * tw * 100).toFixed(4) + "%"; t.style.top = (j * th * 100).toFixed(4) + "%";
+            /* a hair wider than its square, so no seam shows between neighbours */
+            t.style.width = "calc(" + (tw * 100).toFixed(4) + "% + 0.5px)"; t.style.height = "calc(" + (th * 100).toFixed(4) + "% + 0.5px)";
+            t.onload = function () { t.classList.add("is-in"); };
+            t.onerror = function () { delete box.have[id]; if (t.parentNode) t.parentNode.removeChild(t); };
+            t.src = url + k + "/" + id + ".webp";
+            box.el.appendChild(t);
+          })(i, j);
+        });
+        /* names of one level only at a time; of the drawing, this level and the coarser ones under it */
+        Object.keys(lv).forEach(function (k) {
+          k = +k;
+          if (alone) lv[k].el.style.display = k === K ? "" : "none";
+          if (atRest && (k > K || (alone && k !== K) || (k < K && k !== Math.min(K, WHOLE) && k !== K - 1))) { el2.removeChild(lv[k].el); delete lv[k]; }
+        });
+      };
+    };
+    var layerOf = function (cls) { var x = d.createElement("div"); x.className = "mapplate__grid " + cls; raster.appendChild(x); return x; };
+    if (LV.length) {
+      var core = (el.getAttribute("data-core") || "0,0,1,1").split(",").map(Number), near = $("picture", raster);
+      if (near) { near.style.left = core[0] * 100 + "%"; near.style.top = core[1] * 100 + "%"; near.style.width = (core[2] - core[0]) * 100 + "%"; near.style.height = (core[3] - core[1]) * 100 + "%"; }
+      var baseEl = layerOf("mapplate__grid--base"), tilesBox = $("[data-tiles]", el), namesEl = layerOf("mapplate__grid--names");
+      if (tilesBox) raster.insertBefore(tilesBox, namesEl);   /* satellite squares lie between the drawing and the names */
+      afterMove.push(squares(baseEl, el.getAttribute("data-base"), null, false));
+      afterMove.push(squares(namesEl, el.getAttribute("data-names"), list("data-have"), true));
+    }
+    /* Nothing of the wide map is fetched until the map is near the screen: a visitor who never scrolls to it
+       is not made to download it. Until then the picture of the neighbourhood, which the page already has,
+       stands in its place. */
+    var awake = false;
+    var wake = function () {
+      if (awake || !live || !LV.length) return;
+      var r = view.getBoundingClientRect();
+      if (r.bottom < -innerHeight || r.top > innerHeight * 2) return;
+      awake = true;
+      var under = new Image();
+      under.className = "mapplate__under"; under.alt = ""; under.decoding = "async"; under.draggable = false; under.src = el.getAttribute("data-under");
+      raster.insertBefore(under, raster.firstChild);
+      settle();
+    };
+
 
     /* Markers. Pointing at one with a mouse, or reaching it with the keyboard, shows its card and lights its
        row in the list beside the map. Choosing it (a click, or a tap) keeps the card open; choosing it again,
@@ -1129,7 +1240,7 @@
     var satUrl = el.getAttribute("data-sat"), tilesEl = $("[data-tiles]", el);
     if (satUrl && tilesEl) {
       var B = (el.getAttribute("data-bounds") || "").split(",").map(Number); /* west, south, east, north */
-      var namesImg = $("[data-names-img]", el), failBox = $("[data-sat-fail]", el), creditSat = $("[data-credit-sat]", el);
+      var failBox = $("[data-sat-fail]", el), creditSat = $("[data-credit-sat]", el), baseGrid = $(".mapplate__grid--base", el);
       var zMin = num("data-sat-min", 16), zMax = num("data-sat-max", 18), layer = "map", levels = {}, got = 0, lost = 0, lastDraw = 0;
       var colOf = function (lon, z) { return (lon + 180) / 360 * Math.pow(2, z); };
       var rowAt = function (lat, z) { var r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z); };
@@ -1170,10 +1281,10 @@
         el.classList.toggle("is-sat", sat);
         $$("[data-layer][aria-pressed]", el).forEach(function (b2) { b2.setAttribute("aria-pressed", b2.getAttribute("data-layer") === next ? "true" : "false"); });
         tilesEl.hidden = !sat;
-        if (namesImg) { namesImg.hidden = !sat; if (sat && !namesImg.getAttribute("src")) namesImg.src = el.getAttribute("data-names"); }
+        if (baseGrid) baseGrid.hidden = sat;
         if (creditSat) creditSat.hidden = !sat;
         if (failBox) failBox.hidden = true;
-        if (sat) { got = 0; lost = 0; draw(true); }
+        if (sat) { got = 0; lost = 0; draw(true); } else settle();
         /* the "Back to the map" button has just gone: hand the keyboard to the view switch */
         if (from && !from.hasAttribute("aria-pressed")) { var seg = $('[data-layer="' + next + '"][aria-pressed]', el); if (seg) seg.focus(); }
       };
@@ -1181,11 +1292,14 @@
     }
 
     start();
+    wake();
     /* once the page has been scrolled, an open card is set again inside the part of the map that can now be seen */
-    var scrollT = 0;
-    addEventListener("scroll", function () { clearTimeout(scrollT); scrollT = setTimeout(function () { if (live) pins.forEach(function (p) { if (shows(p)) placeCard(p); }); }, 140); }, { passive: true });
-    addEventListener("resize", function () { if (live) { if (measure()) apply(); } else start(); });
-    addEventListener("load", function () { if (live) { if (measure()) apply(); } else start(); });
+    var again = function () { if (live) pins.forEach(function (p) { if (shows(p)) placeCard(p); }); }, scrollT = 0;
+    addEventListener("scroll", function () { wake(); clearTimeout(scrollT); scrollT = setTimeout(again, 140); }, { passive: true });
+    /* and at once when the booking bar is switched on or off, which can happen with no scroll at all */
+    if (barEl && window.MutationObserver) new MutationObserver(again).observe(barEl, { attributes: true, attributeFilter: ["class"] });
+    addEventListener("resize", function () { if (live) { if (measure()) apply(); } else start(); wake(); });
+    addEventListener("load", function () { if (live) { if (measure()) apply(); } else start(); wake(); });
   });
 
   /* ==================================================================== */

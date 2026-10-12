@@ -44,7 +44,7 @@ export const config = {
       /* {z} zoom, {y} row, {x} column, as the service orders them */
       url: process.env.SITE_MAP_TILES || "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       token: process.env.SITE_MAP_TOKEN || "",
-      minZoom: 16,
+      minZoom: 12,
       maxZoom: 18,
       provider: "Esri",
       /* the service's own credit line, read from its metadata on 2026-10-12 */

@@ -200,7 +200,6 @@ export const ui = {
     en: "Street map of the Pratunam and Ratchathewi area of Bangkok with the hotel marked at its centre",
     th: "แผนที่ถนนย่านประตูน้ำและราชเทวี กรุงเทพฯ โดยมีตำแหน่งโรงแรมอยู่ตรงกลาง",
   },
-  hotelPin: { en: "Grand Diamond Suites", th: "แกรนด์ไดมอนด์สวีท" },
   all: { en: "All", th: "ทั้งหมด" },
   showing: { en: "{n} shown", th: "แสดง {n} รายการ" },
   photosShown: { en: "{n} photographs", th: "{n} ภาพ" },
@@ -222,7 +221,7 @@ export const ui = {
   msgStay: { en: "{s}. {a} to {b}", th: "{s} ตั้งแต่วันที่ {a} ถึง {b}" },
   navFooter: { en: "Footer", th: "เมนูส่วนท้าย" },
   sourceLabel: { en: "Source", th: "ที่มา" },
-  mapPan: { en: "Map of the streets around the hotel. Drag it to move it. With the keyboard, the arrow keys move it and plus and minus zoom.", th: "แผนที่ถนนรอบโรงแรม ลากเพื่อเลื่อนแผนที่ หากใช้แป้นพิมพ์ ปุ่มลูกศรใช้เลื่อน ปุ่มบวกและลบใช้ซูม" },
+  mapPan: { en: "Map of central Bangkok, opened on the streets around the hotel. Drag it to move it. With the keyboard, the arrow keys move it, plus and minus zoom, and 0 goes back to the hotel.", th: "แผนที่ใจกลางกรุงเทพฯ เปิดที่ถนนรอบโรงแรม ลากเพื่อเลื่อนแผนที่ หากใช้แป้นพิมพ์ ปุ่มลูกศรใช้เลื่อน ปุ่มบวกและลบใช้ซูม และปุ่ม 0 ใช้กลับไปที่โรงแรม" },
   /* under the map: markers can be chosen */
   pinHint: { en: "Choose a marker to see what it is.", th: "เลือกหมุดบนแผนที่เพื่อดูว่าเป็นสถานที่ใด" },
   /* on a marker's card: {d} is a rounded distance such as "about 450 m" */
@@ -233,8 +232,9 @@ export const ui = {
   zoomLabel: { en: "Zoom", th: "ซูม" },
   zoomIn: { en: "Zoom in", th: "ซูมเข้า" },
   zoomOut: { en: "Zoom out", th: "ซูมออก" },
-  zoomReset: { en: "Show the whole area", th: "แสดงทั้งพื้นที่" },
-  mapHintWheel: { en: "Hold Ctrl (⌘ on a Mac) and scroll to zoom the map", th: "กด Ctrl ค้างไว้ (⌘ บน Mac) แล้วเลื่อนเพื่อซูมแผนที่" },
+  zoomReset: { en: "Back to the hotel", th: "กลับไปที่โรงแรม" },
+  mapHintWheel: { en: "Click the map, or hold Ctrl (⌘ on a Mac), to zoom with the scroll wheel", th: "คลิกที่แผนที่ หรือกด Ctrl ค้างไว้ (⌘ บน Mac) เพื่อซูมด้วยล้อเมาส์" },
+  mapHintTouch: { en: "Use two fingers to move the map", th: "ใช้สองนิ้วเพื่อเลื่อนแผนที่" },
   satNote: { en: "The satellite view loads its images from {provider}, and only when you choose it.", th: "มุมมองดาวเทียมโหลดภาพจาก {provider} และจะโหลดเมื่อคุณเลือกมุมมองนี้เท่านั้น" },
   satFailed: { en: "The satellite images could not be loaded.", th: "ไม่สามารถโหลดภาพถ่ายดาวเทียมได้" },
   backToMap: { en: "Back to the map", th: "กลับไปที่แผนที่" },

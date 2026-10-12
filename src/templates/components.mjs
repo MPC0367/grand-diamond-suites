@@ -433,14 +433,21 @@ export function mapPlate(c, places) {
     return `--x:${x.toFixed(2)};--y:${y.toFixed(2)}`;
   };
   const hp = c.hotel.coords;
-  const [hx, hy] = map.project(hp.lat, hp.lon);
-  const b = map.bounds;
+  /* Two places for everything. Before the script runs, the page shows a picture of the neighbourhood and the
+     markers sit on it (--x, --y). The script then lays out the wide frame, central Bangkok, and moves each
+     marker to its place on that (data-wx, data-wy). */
+  const wide = map.wide, b = wide.bounds;
+  const onWide = (lat, lon) => { const [x, y] = map.projectWide(lat, lon); return raw(` data-wx="${x.toFixed(3)}" data-wy="${y.toFixed(3)}"`); };
+  const [hx, hy] = map.projectWide(hp.lat, hp.lon);
+  const [nx0, ny0] = map.projectWide(map.bounds.north, map.bounds.west), [nx1, ny1] = map.projectWide(map.bounds.south, map.bounds.east);
+  const core = [nx0, ny0, nx1, ny1].map((n) => (n / 100).toFixed(5)).join(",");
+  const levels = wide.levels.map((L) => `${L.k}:${L.c0},${L.r0},${L.cols},${L.rows}`).join(";");
   /* the address pattern for one square of satellite imagery, with the studio's key if one is set */
   const tiles = sat.on ? sat.url + (sat.token ? (sat.url.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(sat.token) : "") : "";
   const osm = c.lang === "th"
     ? 'ข้อมูลแผนที่ © ผู้ร่วมพัฒนา <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap<span class="sr-only"> (เปิดในแท็บใหม่)</span></a>'
     : 'Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap<span class="sr-only"> (opens in a new tab)</span></a> contributors';
-  return html`<div class="mapplate" data-map data-ratio="${(map.width / map.height).toFixed(4)}" data-ground="${Math.round(map.groundWidth)}" data-hx="${(hx / 100).toFixed(4)}" data-hy="${(hy / 100).toFixed(4)}" data-mid="${c.asset("img/" + files.webp[1])}" data-large="${c.asset("img/" + files.large)}"${sat.on ? raw(` data-bounds="${b.west},${b.south},${b.east},${b.north}" data-sat="${e(tiles)}" data-sat-min="${sat.minZoom}" data-sat-max="${sat.maxZoom}" data-names="${e(c.asset("img/" + files.names))}"`) : ""}>
+  return html`<div class="mapplate" data-map data-ratio="${(map.width / map.height).toFixed(4)}" data-ground="${wide.ground}" data-hx="${(hx / 100).toFixed(5)}" data-hy="${(hy / 100).toFixed(5)}" data-open="${wide.open}" data-core="${core}" data-levels="${levels}" data-have="${wide.names[c.lang].join(";")}" data-base="${c.asset("map/base/")}" data-names="${c.asset("map/" + c.lang + "/")}" data-under="${c.asset("img/" + wide.under)}"${sat.on ? raw(` data-bounds="${b.west},${b.south},${b.east},${b.north}" data-sat="${e(tiles)}" data-sat-min="${sat.minZoom}" data-sat-max="${sat.maxZoom}"`) : ""}>
     <div class="mapplate__view" data-view data-label="${c.t("mapPan")}">
       <div class="mapplate__stage" data-map-stage>
         <div class="mapplate__raster" data-raster>
@@ -448,22 +455,21 @@ export function mapPlate(c, places) {
             <source type="image/webp" srcset="${c.asset("img/" + files.webp[0])} 960w, ${c.asset("img/" + files.webp[1])} 1600w" sizes="(min-width: 1000px) 56vw, (min-width: 700px) 92vw, 680px">
             <img class="mapplate__img" src="${c.asset("img/" + files.jpg)}" width="${map.width}" height="${map.height}" alt="${c.t("mapAlt")}" loading="lazy" decoding="async">
           </picture>
-          ${sat.on ? html`<div class="mapplate__tiles" data-tiles hidden></div><img class="mapplate__names" data-names-img width="${map.width * 2}" height="${map.height * 2}" alt="" hidden>` : ""}
+          ${sat.on ? html`<div class="mapplate__tiles" data-tiles hidden></div>` : ""}
         </div>
         <div class="mapplate__pins" data-pins>
-          <span class="pin pin--hotel" style="${pos(hp.lat, hp.lon)}" aria-hidden="true"></span>
-          <span class="pin-label" style="${pos(hp.lat, hp.lon)}" aria-hidden="true">${c.t("hotelPin")}</span>
+          <span class="pin pin--hotel" style="${pos(hp.lat, hp.lon)}"${onWide(hp.lat, hp.lon)} aria-hidden="true"></span>
           ${places.map((p) => {
             /* The card says what the icon means (the kind of place) and what the place is. It shows on hover,
                on keyboard focus and when the marker is chosen, which on a touch screen means tapped. A screen
                reader gets the same from the marker's name and description. */
             const kind = c.l(locationPage.kinds[p.kind]);
             const far = c.t("pinDistance", { d: distText(c, metresBetween(c.hotel.coords, p)) }).replace(/^[a-z]/, (ch) => ch.toUpperCase());
-            return html`<button type="button" class="pin" style="${pos(p.lat, p.lon)}" data-pin="${p.id}" data-kind="${p.kind}" aria-pressed="false" aria-label="${c.l(p.name)}, ${kind}" aria-describedby="pin-${p.id}-about">${icon(KIND_ICON[p.kind])}<span class="pin__card" aria-hidden="true"><span class="pin__kind">${icon(KIND_ICON[p.kind])}${kind}</span><span class="pin__name">${c.l(p.name)}</span><span class="pin__about" id="pin-${p.id}-about"><span class="pin__what">${c.l(p.brief)}</span> <span class="pin__far">${far}</span></span><span class="pin__x">${icon("close")}</span></span></button>`;
+            return html`<button type="button" class="pin" style="${pos(p.lat, p.lon)}"${onWide(p.lat, p.lon)} data-pin="${p.id}" data-kind="${p.kind}" aria-pressed="false" aria-label="${c.l(p.name)}, ${kind}" aria-describedby="pin-${p.id}-about">${icon(KIND_ICON[p.kind])}<span class="pin__card" aria-hidden="true"><span class="pin__kind">${icon(KIND_ICON[p.kind])}${kind}</span><span class="pin__name">${c.l(p.name)}</span><span class="pin__about" id="pin-${p.id}-about"><span class="pin__what">${c.l(p.brief)}</span> <span class="pin__far">${far}</span></span><span class="pin__x">${icon("close")}</span></span></button>`;
           })}
         </div>
       </div>
-      <p class="mapplate__hint" data-map-hint aria-hidden="true" hidden>${c.t("mapHintWheel")}</p>
+      <p class="mapplate__hint" data-map-hint data-wheel="${c.t("mapHintWheel")}" data-touch="${c.t("mapHintTouch")}" aria-hidden="true" hidden>${c.t("mapHintWheel")}</p>
       ${sat.on ? html`<div class="mapplate__fail" data-sat-fail role="alert" hidden><p>${c.t("satFailed")}</p><button type="button" class="btn btn--paper btn--sm" data-layer="map">${c.t("backToMap")}</button></div>` : ""}
     </div>
     <div class="mapplate__tools js-only">

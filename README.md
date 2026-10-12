@@ -21,18 +21,22 @@ privacy and booking terms, with a 404 page and a root page that picks the langua
 framework and no third-party script. Fonts, photographs and the street map are served by
 the site itself.
 
-The neighbourhood map can be dragged and zoomed, and its places are marked with an icon
-for the kind of place. A marker opens a small card that says what the icon means, what the
+The map is a drawing of central Bangkok in the site's own palette. `tools/map.mjs` draws it
+from OpenStreetMap data (fetched once by `tools/map-data.mjs`) as a small pyramid of square
+pictures, which the site serves itself. They are kept in `docs/map`, as the photographs are
+in `docs/media`: both folders are written by their own tools and left alone by the build. It opens on the streets around the hotel and can be
+dragged and zoomed: out to the whole of central Bangkok, about ten kilometres across, and in
+to about half a metre to a pixel around the hotel. Its places are marked with an icon for
+the kind of place, and a marker opens a small card that says what the icon means, what the
 place is and how far it is: on a tap on a phone, and on a click, on hover or on keyboard
 focus on a laptop.
 
-The map can also carry a satellite view, the one part that would come from elsewhere: its
-images are fetched by the visitor's browser from Esri's World Imagery service, and only
-after the visitor has chosen that view. Esri asks those who use its maps to register and
-keep to its terms, so the published site is built without it for now
-(`SITE_MAP_SATELLITE=off`), and then asks nothing of any other site. Leave that setting
-out to build with the satellite view; `SITE_MAP_TOKEN` adds an API key to the requests,
-and `SITE_MAP_TILES` names another imagery service.
+The map has one part that comes from elsewhere: a satellite view, whose images the
+visitor's browser fetches from Esri's World Imagery service, and only after the visitor has
+chosen that view. Esri asks those who use its maps to register and keep to its terms. Build
+with `SITE_MAP_SATELLITE=off` to leave the satellite view out, and the site then asks
+nothing of any other site; `SITE_MAP_TOKEN` adds an API key to the requests, and
+`SITE_MAP_TILES` names another imagery service.
 
 The site does not take bookings. Its stay planner builds a link to the hotel's own booking
 page that carries the arrival date, the number of nights, the number of adults and the

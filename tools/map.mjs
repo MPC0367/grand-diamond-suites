@@ -1,202 +1,96 @@
-/* Draws the static street-map plate of Pratunam and Ratchathewi for the location pages.
+/* Draws the site's street map of central Bangkok, in the site's own palette, from OpenStreetMap data.
+
+   The map is a small pyramid of square pictures ("tiles"), so that a visitor can move it and zoom it:
+
+     level 0   all of central Bangkok in 640 logical pixels      (about 17 m to a pixel)
+     level 3   the same area in 5120                             (about 2 m: where the map opens, on the hotel)
+     level 5   the middle of it in 20480                         (about half a metre)
+
+   Each level is drawn for its own scale: which roads appear, how wide they are, which names are written.
+   The drawing and the names are separate pictures. The drawing is shared by both languages; the names are
+   drawn once in English and once in Thai on a clear background, and are also laid over the satellite images.
 
    What it does, end to end:
-     1. reads the OpenStreetMap extract from _private/map/overpass.json, or asks the
-        Overpass API for it once and saves it there (later runs are offline);
-     2. projects everything with spherical Web Mercator into a fixed 1600 x 1200 frame;
-     3. builds one SVG per language (English, Thai) in the site palette;
-     4. renders the SVG in a real browser with the site's own web fonts;
-     5. writes the WebP and JPEG derivatives, the projection record the site uses to
-        place its pins, and two check images with verification points drawn on top;
-     6. writes two more files for the map's zoom and satellite view: the same plate at
-        twice the size (3200 x 2400), shown once a visitor zooms in, and the names
-        alone on a clear background, laid over the satellite images so that the streets
-        keep their names. Both come from the same drawing and the same projection.
+     1. reads the saved extracts in _private/map (tools/map-data.mjs fetches them once);
+     2. projects everything with spherical Web Mercator into the frame in tools/map-frame.mjs;
+     3. for every level, builds SVG in blocks of 4 x 4 tiles and renders it in a real browser, the names
+        with the site's own web fonts, at twice the size for sharp screens;
+     4. cuts the blocks into tiles and writes them to docs/map, the published folder (the build leaves
+        that folder alone, as it does the photographs in docs/media);
+     5. writes the picture the page shows before its script runs (the neighbourhood, with names), a small
+        picture of the whole area that sits under the tiles while they load, and the record the site uses
+        to place its markers and to know which tiles exist.
 
-   The plate carries no pins, icons or place names: the site overlays those in HTML
-   from coordinates, using the bounds written to src/data/map.generated.json.
+   Nothing is invented: every line, area and name is a mapped OpenStreetMap feature. Names come from the
+   features' own tags (name:en for English, name:th or name for Thai).
 
-   Usage: node tools/map.mjs
+   Usage: node tools/map.mjs [--levels=0,1,2] [--only=base|names]
    Map data: OpenStreetMap contributors, Open Database License. */
-import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
+import { readFile, writeFile, mkdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { chromium } from "playwright";
+import { NEAR, FRAME, DETAIL, OPEN, TILE, LEVELS, levelSize, toFrame, GROUND } from "./map-frame.mjs";
+import { places as PLACES } from "../src/data/places.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const at = (...p) => path.join(ROOT, ...p);
-
-/* === Frame ================================================================
-   West and east are fixed. North and south are set so that the Mercator frame is
-   exactly 4:3, symmetric (in Mercator) around latitude 13.7504. The rounded values
-   below are the ones recorded for the site, and the projection is defined from those
-   same rounded values, so the site's pins and this drawing cannot drift apart. */
-const W = 1600, H = 1200;
-const WEST = 100.5255, EAST = 100.5455, CENTRE_LAT = 13.7504;
-const rad = (d) => (d * Math.PI) / 180;
-const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + rad(lat) / 2));
-const invMercY = (y) => ((2 * Math.atan(Math.exp(y)) - Math.PI / 2) * 180) / Math.PI;
-const round7 = (n) => Math.round(n * 1e7) / 1e7;
-const halfHeight = ((rad(EAST) - rad(WEST)) * (H / W)) / 2;
-const BOUNDS = {
-  west: WEST,
-  east: EAST,
-  north: round7(invMercY(mercY(CENTRE_LAT) + halfHeight)),
-  south: round7(invMercY(mercY(CENTRE_LAT) - halfHeight)),
-};
-const MX0 = rad(BOUNDS.west), MX1 = rad(BOUNDS.east), MY0 = mercY(BOUNDS.north), MY1 = mercY(BOUNDS.south);
-/* longitude, latitude -> pixel in the 1600 x 1200 frame (x right, y down, north up) */
-const project = (lon, lat) => [((rad(lon) - MX0) / (MX1 - MX0)) * W, ((MY0 - mercY(lat)) / (MY0 - MY1)) * H];
+const arg = (name) => { const hit = process.argv.find((a) => a.startsWith("--" + name + "=")); return hit ? hit.slice(name.length + 3) : null; };
+const ONLY_LEVELS = arg("levels") ? arg("levels").split(",").map(Number) : null;
+const ONLY = arg("only");
+const HOTEL = { lat: 13.7504126, lon: 100.5385094 };
 
 /* === Look ================================================================= */
 const C = {
   ground: "#F5F2EC", building: "#ECE7DD", park: "#E3E6D8", water: "#D5DEE0",
-  road: "#FFFFFF", casing: "#DDD7CC", ink: "#202B32", label: "#5A6265",
+  road: "#FFFFFF", casing: "#DDD7CC", hair: "#E6E0D5", far: "#D3CCBE", ink: "#202B32", label: "#5A6265",
+  waterInk: "#5E7C87", parkInk: "#66734F",
 };
-/* stroke widths in px at the 1600 canvas; "major" classes get a hair of casing */
-const ROADS = {
-  motorway: { w: 9, major: true }, trunk: { w: 9, major: true }, primary: { w: 9, major: true },
-  secondary: { w: 7, major: true }, tertiary: { w: 5, major: true },
-  residential: { w: 3 }, unclassified: { w: 3 }, living_street: { w: 3 }, pedestrian: { w: 3 },
-  service: { w: 1.5 },
-};
-const LINK_SCALE = 0.62;   /* slip roads and ramps are drawn narrower than the road they serve */
-const CASING = 1;          /* px of casing on each side of a major road */
+/* road widths in logical px, by level. A class that is absent from a level is not drawn there. */
+const MAJOR = ["motorway", "trunk", "primary", "secondary", "tertiary"];
+const MINOR = ["residential", "unclassified", "living_street", "pedestrian"];
+const widths = (m, p, s, t, r, v) => ({ motorway: m, trunk: m, primary: p, secondary: s, tertiary: t, residential: r, unclassified: r, living_street: r, pedestrian: r, service: v });
+const ROADS = [
+  widths(1.7, 1.4, 0.9, 0, 0, 0),
+  widths(2.4, 2.1, 1.5, 0.9, 0, 0),
+  widths(3.6, 3.2, 2.5, 1.7, 0.8, 0),
+  widths(5.8, 5.8, 4.5, 3.2, 1.9, 1.0),
+  widths(10, 10, 7.8, 5.6, 3.3, 1.7),
+  widths(17, 17, 13.5, 9.6, 5.8, 3.0),
+];
+const CASING = [0, 0, 0.5, 0.65, 0.8, 1.0];          /* each side of a major road */
+const LINK_SCALE = 0.62;                             /* slip roads and ramps are narrower than the road they serve */
 const DRAW_ORDER = ["service", "pedestrian", "living_street", "unclassified", "residential", "tertiary", "secondary", "primary", "trunk", "motorway"];
+const RAIL_W = [1.0, 1.2, 1.5, 1.6, 2.3, 3.2];
+const WATERLINE = { river: 4.4, canal: 2.2, stream: 1.1, drain: 1.1, ditch: 1.1 };   /* at level 3; scaled with the level */
+const BUILDINGS_FROM = 3;
+const STATION_R = [0, 0, 1.7, 2.3, 3.2, 4.2];
 
-/* === Labels ===============================================================
-   Road names are read from the OSM tags of the ways themselves (name:en, then
-   name:th or name). `near` is only a hint for where along the road the name should
-   sit; position and bearing are then taken from the road geometry at that point.
-   A label is centred on its line unless:
-   - `shift` moves it sideways by that many px (positive = towards the foot of the text);
-   - a rail line runs along it, in which case it is moved just clear of the rails,
-     to the nearer side, or to the side named by `side` (-1 = head of the text, 1 = foot). */
-const ROAD_LABELS = [
-  { osm: "Phetchaburi Road", near: [100.5285, 13.7513] },
-  { osm: "Phetchaburi Road", near: [100.5432, 13.7500] },
-  { osm: "Ratchaprarop Road", near: [100.5413, 13.7530] },
-  { osm: "Ratchadamri Road", near: [100.5403, 13.7468] },
-  { osm: "Phaya Thai Road", near: [100.5306, 13.7490] },
-  { osm: "Rama I Road", near: [100.5272, 13.7469], side: -1 },
-  { osm: "Si Ayutthaya Road", near: [100.5380, 13.7572] },
-];
-/* OSM's English name for the canal is "Khlong Saen Saep" ("khlong" is Thai for canal).
-   The English plate uses the plain-English form, set here; the Thai text is OSM's.
-   The canal is only about 10 px wide, so its name runs along the bank, not over it. */
-const WATER_LABELS = [
-  { osm: "Khlong Saen Saep", en: "Saen Saep Canal", near: [100.5345, 13.7494], shift: 14 },
-];
-/* The two rail lines are named once each, in small text, beside the line and near the frame edge. */
-const RAIL_LABELS = [
-  { line: "bts-sukhumvit", en: "BTS Sukhumvit Line", th: "รถไฟฟ้า BTS สายสุขุมวิท", near: [100.5330, 13.7550], side: 1 },
-  { line: "arl", en: "Airport Rail Link", th: "แอร์พอร์ต เรล ลิงก์", near: [100.5450, 13.7545], side: -1 },
-];
-const RAIL_GAP = 2.5;      /* px between a label's halo and a rail line beside it */
+/* Type sizes in logical px, by level; 0 = that kind of name is not written at that level. A level is shown at
+   between half and the whole of its own size, so these are about twice the smallest size a name is read at. */
 const TYPE = {
-  en: { family: '"Manrope", sans-serif', size: 13, small: 11, spacing: "0.06em", upper: true, capSample: "H" },
-  th: { family: '"Manrope", "Noto Sans Thai", sans-serif', size: 14, small: 12, spacing: "0", upper: false, capSample: "ก" },
+  place: [13, 14, 15, 16, 0, 0],
+  roadA: [0, 12, 13, 14, 14.5, 15],                  /* motorway, trunk, primary */
+  roadB: [0, 0, 12, 13, 14, 14.5],                   /* secondary, tertiary */
+  roadC: [0, 0, 0, 11.5, 12.5, 13],                  /* streets and lanes */
+  water: [12, 13, 13.5, 14, 14.5, 15],
+  park: [0, 0, 12, 12.5, 13.5, 14],
+  station: [0, 0, 0, 12.5, 13.5, 14],
 };
-const HALO = 3;            /* px of ivory around each glyph (stroke-width is twice this) */
+const FONT = {
+  en: { family: '"Manrope", sans-serif', plus: 0, spacing: 0.06, upper: true, cap: "H", line: 1.25 },
+  th: { family: '"Manrope", "Noto Sans Thai", sans-serif', plus: 1, spacing: 0, upper: false, cap: "ก", line: 1.6 },
+};
+const HALO = 2.4;                                    /* px of ground colour around each glyph */
+const SPACING = { roadA: 430, roadB: 400, roadC: 340, water: 520 };   /* logical px between two writings of one name */
 
-/* === Verification points (check images only, never shipped) ================ */
-const HOTEL = { lat: 13.7504126, lon: 100.5385094 };
-const STATIONS = [
-  { key: "Ratchathewi BTS", en: "Ratchathewi", ref: "N1", kind: "bts" },
-  { key: "Phaya Thai BTS", en: "Phaya Thai", ref: "N2", kind: "bts" },
-  { key: "Phaya Thai ARL", en: "Phaya Thai", ref: "A8", kind: "arl" },
-  { key: "Ratchaprarop ARL", en: "Ratchaprarop", ref: "A7", kind: "arl" },
-  { key: "Siam BTS", en: "Siam", ref: "CEN", kind: "bts" },
-  { key: "Chit Lom BTS", en: "Chit Lom", ref: "E1", kind: "bts" },
-];
-
-/* === Data =================================================================
-   One request, a little larger than the frame. `out geom` puts coordinates on every
-   way and on every member of the multipolygon relations, so no second lookup is
-   needed. The route relations come back without geometry: they are only used to
-   tell which track belongs to which line. */
-const PAD = 0.003;
-const QUERY_BBOX = [BOUNDS.south - PAD, BOUNDS.west - PAD, BOUNDS.north + PAD, BOUNDS.east + PAD].map((n) => n.toFixed(4)).join(",");
-const QUERY = `[out:json][timeout:120][bbox:${QUERY_BBOX}];
-(
-  way["highway"~"^(motorway|trunk|primary|secondary|tertiary)(_link)?$"];
-  way["highway"~"^(residential|unclassified|living_street|pedestrian|service)$"];
-  way["railway"~"^(rail|light_rail|subway|monorail)$"];
-  way["waterway"];
-  way["natural"="water"];
-  relation["natural"="water"];
-  relation["waterway"="riverbank"];
-  way["leisure"="park"];
-  relation["leisure"="park"];
-  way["landuse"="grass"];
-  relation["landuse"="grass"];
-  way["building"];
-  relation["building"];
-  node["railway"="station"];
-  node["public_transport"="station"];
-  way["railway"="station"];
-  way["public_transport"="station"];
-);
-out body geom;
-relation["route"~"^(train|light_rail|subway|monorail)$"];
-out body;`;
-const ENDPOINTS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
-const USER_AGENT = "grand-diamond-concept-map/1.0 (static render, one request)";
-const CACHE = at("_private/map/overpass.json");
-const CACHE_META = at("_private/map/overpass.meta.json");   /* which endpoint answered, and when */
-
-async function loadOsm() {
-  try {
-    const raw = await readFile(CACHE, "utf8");
-    let meta = {};
-    try { meta = JSON.parse(await readFile(CACHE_META, "utf8")); } catch { meta = { fetched: (await stat(CACHE)).mtime.toISOString() }; }
-    return { osm: JSON.parse(raw), meta, reused: true };
-  } catch { /* no saved extract yet: ask once */ }
-  let lastError;
-  for (const endpoint of ENDPOINTS) {
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded; charset=UTF-8", "user-agent": USER_AGENT, accept: "application/json" },
-        body: "data=" + encodeURIComponent(QUERY),
-        signal: AbortSignal.timeout(180000),
-      });
-      const raw = await res.text();
-      if (!res.ok) throw new Error(`${endpoint} answered ${res.status}: ${raw.slice(0, 200)}`);
-      const osm = JSON.parse(raw);
-      if (!Array.isArray(osm.elements) || !osm.elements.length) throw new Error(`${endpoint} returned no elements`);
-      const meta = { endpoint, fetched: new Date().toISOString(), userAgent: USER_AGENT, bbox: QUERY_BBOX, elements: osm.elements.length, query: QUERY };
-      await mkdir(path.dirname(CACHE), { recursive: true });
-      await writeFile(CACHE, raw, "utf8");
-      await writeFile(CACHE_META, JSON.stringify(meta, null, 1), "utf8");
-      return { osm, meta, reused: false };
-    } catch (e) { lastError = e; console.warn("Overpass request failed:", String(e).slice(0, 300)); }
-  }
-  throw lastError;
-}
-
-/* === Geometry helpers (all in frame pixels) ================================ */
+/* === Geometry helpers ===================================================== */
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 const lengthOf = (line) => { let s = 0; for (let i = 1; i < line.length; i++) s += dist(line[i - 1], line[i]); return s; };
 const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-
-function touchesFrame(line, margin = 40) {
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const [x, y] of line) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-  return x1 >= -margin && x0 <= W + margin && y1 >= -margin && y0 <= H + margin;
-}
-
-/* extra points so that no two neighbours are further apart than `step` */
-function densify(line, step) {
-  const out = [line[0]];
-  for (let i = 1; i < line.length; i++) {
-    const n = Math.ceil(dist(line[i - 1], line[i]) / step);
-    for (let k = 1; k <= n; k++) out.push(lerp(line[i - 1], line[i], k / n));
-  }
-  return out;
-}
-
+const bboxOf = (pts) => { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const [x, y] of pts) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } return [x0, y0, x1, y1]; };
+const hits = (bb, r) => bb[2] >= r[0] && bb[0] <= r[2] && bb[3] >= r[1] && bb[1] <= r[3];
 function pointAt(line, s) {
   for (let i = 1; i < line.length; i++) {
     const d = dist(line[i - 1], line[i]);
@@ -205,28 +99,12 @@ function pointAt(line, s) {
   }
   return line[0];
 }
-
-/* nearest point of a polyline to p: distance, the point, how far along it lies, and
-   whether that point is simply one of the two ends (p is then beyond the line) */
-function nearestOnLine(p, line) {
-  let best = { d: Infinity, point: line[0], s: 0, atEnd: true }, run = 0;
-  const last = line.length - 1;
-  for (let i = 1; i <= last; i++) {
-    const a = line[i - 1], b = line[i], vx = b[0] - a[0], vy = b[1] - a[1], len2 = vx * vx + vy * vy;
-    const t = len2 ? Math.min(1, Math.max(0, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / len2)) : 0;
-    const q = [a[0] + vx * t, a[1] + vy * t], d = dist(p, q), seg = Math.sqrt(len2);
-    if (d < best.d) best = { d, point: q, s: run + seg * t, atEnd: (i === 1 && t === 0) || (i === last && t === 1) };
-    run += seg;
-  }
-  return best;
+function nearestOnSeg(p, a, b) {
+  const vx = b[0] - a[0], vy = b[1] - a[1], len2 = vx * vx + vy * vy;
+  const t = len2 ? Math.min(1, Math.max(0, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / len2)) : 0;
+  return Math.hypot(p[0] - a[0] - vx * t, p[1] - a[1] - vy * t);
 }
-const nearestOnLines = (p, lines, within = Infinity) => {
-  let best = null;
-  for (const line of lines) { const n = nearestOnLine(p, line); if (n.d <= within && (!best || n.d < best.d)) best = n; }
-  return best;
-};
-
-/* Douglas-Peucker: drops points that move the line by less than `tolerance` px */
+/* Douglas-Peucker: drops points that move the line by less than `tolerance` */
 function simplify(line, tolerance) {
   if (line.length < 3) return line;
   const keep = new Uint8Array(line.length); keep[0] = keep[line.length - 1] = 1;
@@ -234,12 +112,11 @@ function simplify(line, tolerance) {
   while (stack.length) {
     const [i, j] = stack.pop();
     let worst = 0, at = -1;
-    for (let k = i + 1; k < j; k++) { const d = nearestOnLine(line[k], [line[i], line[j]]).d; if (d > worst) { worst = d; at = k; } }
+    for (let k = i + 1; k < j; k++) { const d = nearestOnSeg(line[k], line[i], line[j]); if (d > worst) { worst = d; at = k; } }
     if (worst > tolerance) { keep[at] = 1; stack.push([i, at], [at, j]); }
   }
   return line.filter((_, i) => keep[i]);
 }
-
 /* the parts of a polyline that lie inside a rectangle [x0, y0, x1, y1] */
 function clipLine(line, [x0, y0, x1, y1]) {
   const out = []; let cur = null;
@@ -256,11 +133,9 @@ function clipLine(line, [x0, y0, x1, y1]) {
   }
   return out;
 }
-
-/* Joins pieces end to end into longer lines. Each piece is { pts, a, b } where a and b
-   identify its two ends (OSM node ids, or coordinates for relation members). Where
-   several pieces meet, the straightest continuation is taken; `maxTurn` (degrees)
-   stops a line from doubling back along the other carriageway or track. */
+/* Joins pieces end to end into longer lines. Each piece is { pts, a, b }, where a and b name its two ends.
+   Where several pieces meet, the straightest continuation is taken; `maxTurn` (degrees) stops a line from
+   doubling back along the other carriageway. */
 function stitch(pieces, maxTurn = 180) {
   const pool = new Set(pieces), ends = new Map();
   const add = (k, l) => { if (!ends.has(k)) ends.set(k, new Set()); ends.get(k).add(l); };
@@ -276,12 +151,12 @@ function stitch(pieces, maxTurn = 180) {
     let pts = first.pts.slice(), head = first.a, tail = first.b;
     for (const side of ["tail", "head"]) {
       for (;;) {
-        if (head === tail && pts.length > 2) break;                      /* already a closed ring */
+        if (head === tail && pts.length > 2) break;
         const k = side === "tail" ? tail : head;
         const here = side === "tail" ? pts.at(-1) : pts[0], prev = side === "tail" ? pts.at(-2) : pts[1];
         let best = null;
         for (const o of ends.get(k) || []) {
-          const oPts = o.a === k ? o.pts : o.pts.slice().reverse();      /* oriented to leave from k */
+          const oPts = o.a === k ? o.pts : o.pts.slice().reverse();
           const turn = turnAt(prev, here, oPts[1]);
           if (!best || turn < best.turn) best = { o, oPts, turn };
         }
@@ -296,272 +171,395 @@ function stitch(pieces, maxTurn = 180) {
   }
   return out;
 }
-
-/* Collapses parallel lines (the two tracks of a railway, the two carriageways of a
-   road) into one centre line. Nothing is invented: every output point is a mapped
-   point, moved by the average offset to mapped neighbours no more than `tol` px away.
-
-   Lines are taken longest first and the first is kept. A later line is compared with
-   what is already kept:
-   - where it runs within `tol` px of a kept line it is absorbed by that line (its
-     host), and the host is afterwards moved to the middle of everything it absorbed.
-     This also covers tracks that spread around a station platform and come back;
-   - where it goes further away than `tol` it is a branch. That part is kept as a line
-     of its own, together with the stretch over which it peels away from its host,
-     and that stretch is eased onto the host so that the join is smooth. */
-function collapseParallel(lines, tol) {
-  const STEP = 3;                                   /* px between sample points */
-  const todo = lines.map((l) => densify(l, STEP)).sort((a, b) => lengthOf(b) - lengthOf(a));
-  const kept = [];                                  /* { raw: points, ease: per point, null or { host, w } } */
-  const absorbed = [];                              /* { host, src, pts }: a stretch of line `src` taken in by kept line `host` */
-  todo.forEach((line, src) => {
-    const hosts = kept.length;
-    if (!hosts) { kept.push({ raw: line, ease: line.map(() => null) }); return; }
-    const near = line.map((p) => {
-      let best = { d: Infinity, host: -1 };
-      for (let h = 0; h < hosts; h++) { const d = nearestOnLine(p, kept[h].raw).d; if (d < best.d) best = { d, host: h }; }
-      return best;
-    });
-    const used = new Uint8Array(line.length);
-    for (let i = 0; i < line.length; i++) {
-      if (near[i].d <= tol) continue;
-      let j = i; while (j + 1 < line.length && near[j + 1].d > tol) j++;                    /* i..j lies apart */
-      let a = i; while (a > 0 && near[a - 1].d < near[a].d - 0.03) a--;                     /* peeling away before it */
-      let b = j; while (b + 1 < line.length && near[b + 1].d < near[b].d - 0.03) b++;       /* closing in again after it */
-      const raw = [], ease = [];
-      for (let k = a; k <= b; k++) {
-        const end = k < i ? a : k > j ? b : -1;
-        raw.push(line[k]);
-        ease.push(end < 0 ? null : { host: near[k].host, w: Math.min(1, (tol - near[k].d) / Math.max(1e-6, tol - near[end].d)) });
-        used[k] = 1;
-      }
-      if (lengthOf(raw) > tol) kept.push({ raw, ease });
-      i = b;
-    }
-    let pts = [], host = -1;
-    const close = () => { if (pts.length > 1) absorbed.push({ host, src, pts }); pts = []; };
-    line.forEach((p, k) => {
-      if (used[k]) { close(); return; }
-      if (near[k].host !== host) { close(); host = near[k].host; }
-      pts.push(p);
-    });
-    close();
-  });
-
-  const done = [];
-  kept.forEach((line, h) => {
-    const bundle = new Map();                       /* source line -> its stretches absorbed by this one */
-    for (const x of absorbed) if (x.host === h) bundle.set(x.src, (bundle.get(x.src) || []).concat([x.pts]));
-    /* how far each point has to move to reach the middle of its bundle */
-    const move = line.raw.map((p) => {
-      let x = 0, y = 0, n = 1;
-      for (const stretches of bundle.values()) {
-        const q = nearestOnLines(p, stretches, tol * 1.1);
-        if (q && !q.atEnd) { x += q.point[0] - p[0]; y += q.point[1] - p[1]; n++; }
-      }
-      return [x / n, y / n];
-    });
-    const SMOOTH = 5;                               /* samples either side: evens out the step where a neighbour starts or stops */
-    done.push(line.raw.map((p, k) => {
-      let x = 0, y = 0, n = 0;
-      for (let m = Math.max(0, k - SMOOTH); m <= Math.min(move.length - 1, k + SMOOTH); m++) { x += move[m][0]; y += move[m][1]; n++; }
-      const q = [p[0] + x / n, p[1] + y / n], e = line.ease[k];
-      return e ? lerp(q, nearestOnLine(q, done[e.host]).point, e.w) : q;
-    }));
-  });
-  return done.map((l) => simplify(l, 0.2));
-}
-
 const signedArea = (ring) => { let s = 0; for (let i = 1; i < ring.length; i++) s += ring[i - 1][0] * ring[i][1] - ring[i][0] * ring[i - 1][1]; return s / 2; };
-const sameWay = (ring) => (signedArea(ring) < 0 ? ring.slice().reverse() : ring);   /* one winding, so overlaps unite */
+const sameWay = (ring) => (signedArea(ring) < 0 ? ring.slice().reverse() : ring);
+const centroid = (ring) => { let x = 0, y = 0; for (const p of ring) { x += p[0]; y += p[1]; } return [x / ring.length, y / ring.length]; };
 
 /* === SVG helpers ========================================================== */
 const n2 = (n) => String(Math.round(n * 100) / 100);
 const dLine = (line) => "M" + line.map((p) => n2(p[0]) + " " + n2(p[1])).join("L");
 const dRing = (ring) => dLine(ring) + "Z";
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const ROUND = 'stroke-linecap="round" stroke-linejoin="round"';
+const stroke = (lines, colour, width, extra = "") => (lines.length ? `<path fill="none" stroke="${colour}" stroke-width="${n2(width)}" ${extra} d="${lines.map(dLine).join("")}"/>` : "");
 
-/* === Read the extract into layers ========================================= */
-const { osm, meta, reused } = await loadOsm();
-const ways = osm.elements.filter((e) => e.type === "way" && e.geometry);
-const relations = osm.elements.filter((e) => e.type === "relation");
-const toPx = (geometry) => geometry.map((g) => project(g.lon, g.lat));
-const closed = (w) => w.nodes.length > 3 && w.nodes[0] === w.nodes.at(-1);
-const coordKey = (g) => g.lat + "," + g.lon;
-const piece = (w) => ({ pts: toPx(w.geometry), a: w.nodes[0], b: w.nodes.at(-1) });
-
-/* areas: plain closed ways go into one united path; multipolygons keep their holes */
-function areaLayer(wayTest, relTest) {
-  const simple = [], holed = [];
-  for (const w of ways) if (wayTest(w.tags || {}) && closed(w)) { const r = toPx(w.geometry); if (touchesFrame(r)) simple.push(sameWay(r)); }
-  for (const r of relations) {
-    if (r.tags?.type !== "multipolygon" || !relTest(r.tags)) continue;
-    const ring = (role) => stitch(r.members.filter((m) => m.type === "way" && m.geometry && (m.role || "outer") === role)
-      .map((m) => ({ pts: toPx(m.geometry), a: coordKey(m.geometry[0]), b: coordKey(m.geometry.at(-1)) }))).filter((x) => x.length > 3);
-    const outer = ring("outer"), inner = ring("inner");
-    if (!outer.some((x) => touchesFrame(x))) continue;
-    if (inner.length) holed.push(outer.concat(inner)); else simple.push(...outer.map(sameWay));
+/* === Read the extracts ==================================================== */
+const read = async (name) => JSON.parse(await readFile(at("_private/map/parts", name), "utf8"));
+/* the extracts were fetched in parts that overlap a little: each mapped thing is kept once */
+const join = async (names) => {
+  const seen = new Set(), elements = [];
+  for (const name of names) {
+    let part;
+    try { part = await read(name + ".json"); } catch { if (!ONLY_LEVELS) throw new Error(`${name}.json is not in _private/map/parts: run node tools/map-data.mjs first`); console.warn(`${name}: not fetched yet, left out of this trial`); continue; }
+    for (const e of part.elements) { const id = e.type + e.id; if (!seen.has(id)) { seen.add(id); elements.push(e); } }
   }
-  return { simple, holed };
+  return { elements };
+};
+const QUARTERS = ["nw", "ne", "sw", "se"];
+/* "areas" first: an earlier fetch left cut-off copies of the same relations in "water" and "green" */
+const wide = await join(["areas", "roads", "rail", "water", "green", "places", ...QUARTERS.map((q) => "streets-" + q)]), bld = await join(QUARTERS.map((q) => "buildings-" + q));
+const meta = await read("roads.meta.json").catch(() => ({}));
+const F = (g) => toFrame(g.lon, g.lat);
+const key = (g) => g.lat + "," + g.lon;
+const ways = wide.elements.filter((e) => e.type === "way" && e.geometry);
+const relations = wide.elements.filter((e) => e.type === "relation");
+const nodes = wide.elements.filter((e) => e.type === "node");
+const isClosed = (g) => g.length > 3 && g[0].lat === g.at(-1).lat && g[0].lon === g.at(-1).lon;
+const hasThai = (s) => /[฀-๿]/.test(s || "");
+const nameOf = (t, lang) => (lang === "en" ? t["name:en"] || (t.name && !hasThai(t.name) ? t.name : "") : t["name:th"] || (hasThai(t.name) ? t.name : "")) || "";
+
+/* areas: closed ways are plain rings; multipolygons keep their holes */
+function areas(source, wayTest, relTest) {
+  const out = [];
+  for (const w of source.filter((e) => e.type === "way" && e.geometry)) {
+    if (!wayTest(w.tags || {}) || !isClosed(w.geometry)) continue;
+    const ring = sameWay(w.geometry.map(F));
+    out.push({ rings: [ring], holed: false, bb: bboxOf(ring), tags: w.tags || {} });
+  }
+  for (const r of source.filter((e) => e.type === "relation")) {
+    if (!relTest(r.tags || {}) || !r.members) continue;
+    const ring = (role) => stitch(r.members.filter((m) => m.type === "way" && m.geometry && (m.role || "outer") === role)
+      .filter((m) => m.geometry.every(Boolean)).map((m) => ({ pts: m.geometry.map(F), a: key(m.geometry[0]), b: key(m.geometry.at(-1)) }))).filter((x) => x.length > 3);
+    const outer = ring("outer"), inner = ring("inner");
+    if (!outer.length) continue;
+    out.push({ rings: inner.length ? outer.concat(inner) : outer.map(sameWay), holed: inner.length > 0, bb: bboxOf(outer.flat()), tags: r.tags || {} });
+  }
+  return out;
 }
-const areaSvg = ({ simple, holed }, fill, extra = "") =>
-  (simple.length ? `<path fill="${fill}" ${extra} d="${simple.map(dRing).join("")}"/>` : "") +
-  holed.map((rings) => `<path fill="${fill}" ${extra} fill-rule="evenodd" d="${rings.map(dRing).join("")}"/>`).join("");
+const isPark = (t) => t.leisure === "park" || t.landuse === "grass";
+const isWater = (t) => t.natural === "water" || t.waterway === "riverbank";
+const parks = areas(wide.elements, isPark, (t) => isPark(t));
+const water = areas(wide.elements, isWater, (t) => isWater(t));
+const buildings = areas(bld.elements, () => true, () => true);
+const plazas = areas(wide.elements, (t) => t.highway === "pedestrian" && t.area === "yes", () => false);
 
-const underground = (t) => Number(t.layer) < 0 || t.location === "underground";
-const parks = areaLayer((t) => t.leisure === "park" || t.landuse === "grass", (t) => t.leisure === "park" || t.landuse === "grass");
-const water = areaLayer((t) => t.natural === "water" || t.waterway === "riverbank", (t) => t.natural === "water" || t.waterway === "riverbank");
-const buildings = areaLayer((t) => t.building && t.building !== "no" && !underground(t), (t) => t.building && !underground(t));
-const plazas = areaLayer((t) => t.highway === "pedestrian" && t.area === "yes", () => false);
-
-/* small canals and drains that are mapped as a line only (the Saen Saep has a mapped area) */
-const WATERLINE = { river: 6, canal: 3, stream: 1.5, drain: 1.5, ditch: 1.5 };
-const waterLines = {};
+const waterLines = [];
 for (const w of ways) {
   const t = w.tags || {}, width = WATERLINE[t.waterway];
   if (!width || t.tunnel) continue;
-  const line = toPx(w.geometry);
-  if (touchesFrame(line)) (waterLines[width] ||= []).push(line);
+  const pts = w.geometry.map(F);
+  waterLines.push({ w: width, kind: t.waterway, pts, bb: bboxOf(pts), tags: t, a: key(w.geometry[0]), b: key(w.geometry.at(-1)) });
 }
 
-/* roads */
-const roadLines = {};      /* "primary", "primary_link", ... -> lines */
+const roads = [];
 for (const w of ways) {
   const t = w.tags || {};
   if (!t.highway || t.area === "yes") continue;
   const link = t.highway.endsWith("_link"), base = link ? t.highway.slice(0, -5) : t.highway;
-  if (!ROADS[base]) continue;
+  if (!MAJOR.includes(base) && !MINOR.includes(base) && base !== "service") continue;
   if (t.tunnel === "yes") continue;                                              /* underground: not part of the street picture */
   if ((base === "service" || base === "pedestrian") && (t.tunnel || t.bridge)) continue;   /* car-park ramps and footbridges */
   if (base === "service" && (/^(parking_aisle|driveway|drive-through|emergency_access)$/.test(t.service || "") || /^(private|no)$/.test(t.access || ""))) continue;
-  const line = toPx(w.geometry);
-  if (touchesFrame(line)) (roadLines[t.highway] ||= []).push(line);
+  const pts = w.geometry.map(F);
+  roads.push({ base, link, pts, bb: bboxOf(pts), tags: t, a: key(w.geometry[0]), b: key(w.geometry.at(-1)) });
 }
-const roadWidth = (cls) => (cls.endsWith("_link") ? Math.max(3.5, ROADS[cls.slice(0, -5)].w * LINK_SCALE) : ROADS[cls].w);
-const roadOrder = Object.keys(roadLines).sort((a, b) => {
-  const rank = (c) => DRAW_ORDER.indexOf(c.replace(/_link$/, "")) * 2 + (c.endsWith("_link") ? 0 : 1);
-  return rank(a) - rank(b);
-});
 
 /* railways: which line a track belongs to comes from its route relation, then its own tags */
 const routeOfWay = new Map();
-for (const r of relations) if (r.tags?.type === "route") for (const m of r.members) if (m.type === "way") routeOfWay.set(m.ref, r.tags);
-function railLine(w) {
+for (const e of wide.elements) if (e.type === "relation" && e.tags?.type === "route") for (const m of e.members || []) if (m.type === "way") routeOfWay.set(m.ref, e.tags);
+function railKind(w) {
   const t = w.tags, r = routeOfWay.get(w.id) || {};
-  const text = [t.network, t.name, t["name:en"], r.network, r.name, r["name:en"]].filter(Boolean).join(" | ");
-  if (/\bBTS\b|บีทีเอส/.test(text)) return /Silom|สีลม/.test(text) ? "bts-silom" : "bts-sukhumvit";
-  if (/\bARL\b|Airport Rail Link/.test(text)) return "arl";
-  return t.railway === "rail" ? "rail" : "transit";
+  const text = [t.network, t.name, t["name:en"], t.operator, r.network, r.name, r["name:en"], r.operator].filter(Boolean).join(" | ");
+  if (/\bARL\b|Airport Rail Link/i.test(text)) return "arl";
+  if (/\bBTS\b|บีทีเอส/.test(text)) return "bts";
+  if (/\bMRT\b|Blue Line|Purple Line|มหานคร/.test(text) || t.railway === "subway") return "mrt";
+  return t.railway === "rail" ? "rail" : "bts";
 }
-const railPieces = {};     /* line key -> pieces */
+const railsAll = [];
 for (const w of ways) {
   const t = w.tags || {};
   if (!/^(rail|light_rail|subway|monorail)$/.test(t.railway || "")) continue;
-  if (t.service || t.tunnel) continue;                 /* sidings, yards, spurs and crossovers are left out */
-  const p = piece(w);
-  if (touchesFrame(p.pts)) (railPieces[railLine(w)] ||= []).push(p);
+  if (t.service) continue;                              /* sidings, yards, spurs and crossovers are left out */
+  const kind = railKind(w), under = t.tunnel === "yes" || Number(t.layer) < 0;
+  if (under && kind === "rail") continue;
+  const pts = w.geometry.map(F);
+  railsAll.push({ kind, under, pts, bb: bboxOf(pts) });
 }
-/* The two tracks of each line are about 3 px apart at this scale, two BTS lines share
-   the viaduct east of Siam, and at Siam the four tracks spread to about 12 px around
-   the platforms. Each bundle is drawn as its one centre line. */
-const TRACK_TOL = 16;
-const NEARBY = [-80, -80, W + 80, H + 80];             /* centre lines are worked out for the frame and a little beyond */
-const nearby = (lines) => lines.flatMap((l) => clipLine(l, NEARBY));
-const chains = (keys) => nearby(keys.flatMap((k) => stitch(railPieces[k] || [], 60)));
-const RAIL_GROUPS = { bts: ["bts-sukhumvit", "bts-silom", "transit"], arl: ["arl"], rail: ["rail"] };
-const rails = Object.fromEntries(Object.entries(RAIL_GROUPS).map(([name, keys]) => [name, collapseParallel(chains(keys), TRACK_TOL)]));
-const allRails = Object.values(rails).flat();
-/* honesty check: how far, inside the frame, a drawn centre line strays from the nearest mapped track */
-const railDrift = Object.fromEntries(Object.entries(RAIL_GROUPS).map(([name, keys]) => {
-  const mapped = chains(keys);
-  let worst = 0;
-  for (const line of rails[name]) for (const p of densify(line, 3)) {
-    if (p[0] < 0 || p[0] > W || p[1] < 0 || p[1] > H) continue;
-    worst = Math.max(worst, nearestOnLines(p, mapped)?.d ?? 0);
+/* A line is mapped as its two tracks, a few metres apart. One is drawn: taking the longest pieces first, a
+   piece is left out when nearly all of it runs within nine metres of a piece of the same line already kept.
+   Nothing is moved: the line drawn is a mapped track. */
+const rails = [];
+{
+  const CELL = 12 / GROUND, seen = new Map();                 /* cells of twelve metres, in frame fractions */
+  const cellsNear = (p) => { const x = Math.floor(p[0] / CELL), y = Math.floor(p[1] / CELL), out = []; for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) out.push((x + i) + ":" + (y + j)); return out; };
+  const sample = (pts) => { const out = []; for (let i = 1; i < pts.length; i++) { const n = Math.max(1, Math.ceil((dist(pts[i - 1], pts[i]) * GROUND) / 6)); for (let q = 0; q < n; q++) out.push(lerp(pts[i - 1], pts[i], q / n)); } out.push(pts.at(-1)); return out; };
+  for (const r of railsAll.slice().sort((a, b) => lengthOf(b.pts) - lengthOf(a.pts))) {
+    const dots = sample(r.pts), id = r.kind + (r.under ? "u" : "");
+    const close = dots.filter((p) => cellsNear(p).some((c) => (seen.get(id + c) || []).some((o) => dist(o, p) * GROUND < 9))).length;
+    if (close / dots.length > 0.8) continue;
+    rails.push(r);
+    for (const p of dots) { const c = id + Math.floor(p[0] / CELL) + ":" + Math.floor(p[1] / CELL); if (!seen.has(c)) seen.set(c, []); seen.get(c).push(p); }
   }
-  return [name, worst];
-}));
-
-/* stations, for the check images and the numeric checks below */
-const stationNodes = osm.elements.filter((e) => e.type === "node" && e.tags?.railway === "station");
-const checks = [{ key: "Hotel", en: "Hotel", th: "โรงแรม", ...HOTEL, px: project(HOTEL.lon, HOTEL.lat) }];
-const warnings = [];
-for (const s of STATIONS) {
-  const node = stationNodes.find((n) => n.tags["name:en"] === s.en && n.tags.ref === s.ref);
-  if (!node) { warnings.push(`station not found in the extract: ${s.key}`); continue; }
-  const px = project(node.lon, node.lat);
-  const suffix = s.kind === "bts" ? "BTS" : "ARL";
-  checks.push({ key: s.key, en: s.key, th: `${node.tags["name:th"] || node.tags.name} ${suffix}`, lat: node.lat, lon: node.lon, px, osmNode: node.id, offLine: nearestOnLines(px, rails[s.kind])?.d ?? null });
 }
 
-/* === Label placement ====================================================== */
-const INSET = 16;                                      /* labels stay this far inside the frame */
-const majorNamed = (name) => ways.filter((w) => w.tags?.["name:en"] === name && /^(motorway|trunk|primary|secondary|tertiary)$/.test(w.tags.highway || "") && w.tags.tunnel !== "yes");
-const commonest = (list) => { const m = new Map(); for (const v of list) if (v) m.set(v, (m.get(v) || 0) + 1); return [...m].sort((a, b) => b[1] - a[1])[0]?.[0]; };
+/* stations: one dot for each mapped station, one name for each group of stations that share a name */
+/* railway stations only: the same tag is also used for piers and bus terminals */
+const onRails = (t) => t.railway === "station" || (t.public_transport === "station" && (t.subway === "yes" || t.train === "yes" || t.light_rail === "yes" || t.monorail === "yes" || /subway|light_rail|train|monorail/.test(t.station || "")));
+const stationNodes = nodes.filter((n) => n.tags && onRails(n.tags)).filter((n) => n.tags["name:en"] || n.tags.name);
+const metres = (a, b) => Math.hypot((a[0] - b[0]) * GROUND, (a[1] - b[1]) * GROUND);   /* frame fractions -> metres (x and y share one scale) */
+const stations = [];
+for (const n of stationNodes) {
+  const p = F(n);
+  if (p[0] < -0.02 || p[0] > 1.02 || p[1] < -0.02 || p[1] > 1.02) continue;
+  if (stations.some((s) => metres(s.p, p) < 25)) continue;
+  stations.push({ p, tags: n.tags });
+}
+const ownPlaces = PLACES.map((pl) => ({ id: pl.id, kind: pl.kind, p: toFrame(pl.lon, pl.lat) }));
+const hotelAt = toFrame(HOTEL.lon, HOTEL.lat);
 
-/* centre line of a named road or canal, as lines in px */
-const centreOf = (list, tol) => collapseParallel(nearby(stitch(list.map(piece), 60)), tol).filter((l) => touchesFrame(l, 0));
+/* place names: the districts (mapped as suburbs) and their subdistricts (mapped as quarters). The many small
+   community names mapped as neighbourhoods are left out. */
+const placeNodes = nodes.filter((n) => /^(suburb|quarter)$/.test(n.tags?.place || "")).map((n) => ({ p: F(n), tags: n.tags })).filter((n) => n.p[0] > 0 && n.p[0] < 1 && n.p[1] > 0 && n.p[1] < 1);
 
-function placeAlong(lines, near, textLength) {
-  const frame = [INSET, INSET, W - INSET, H - INSET];
-  const room = textLength + 10;
-  const inside = lines.flatMap((l) => clipLine(l, frame)).filter((l) => lengthOf(l) >= room);
-  if (!inside.length) return null;
-  const hint = project(near[0], near[1]);
-  let best = null;
-  for (const line of inside) { const n = nearestOnLine(hint, line); if (!best || n.d < best.d) best = { ...n, line }; }
-  const total = lengthOf(best.line);
-  const s = Math.min(Math.max(best.s, room / 2), total - room / 2);
-  const a = pointAt(best.line, s - textLength / 2), b = pointAt(best.line, s + textLength / 2), m = pointAt(best.line, s);
-  let angle = (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI;
-  if (angle > 90) angle -= 180; else if (angle <= -90) angle += 180;   /* never upside down */
-  /* how far the road bows away from the straight text over its length */
-  let sag = 0;
-  for (let k = 0; k <= 10; k++) sag = Math.max(sag, nearestOnLine(pointAt(best.line, s - textLength / 2 + (textLength * k) / 10), [a, b]).d);
-  return { x: (m[0] + (a[0] + b[0]) / 2) / 2, y: (m[1] + (a[1] + b[1]) / 2) / 2, angle, sag };
+/* === One level ============================================================ */
+function levelOf(k) {
+  const L = LEVELS[k], { w: W, h: H } = levelSize(k);
+  const S = (p) => [p[0] * W, p[1] * H];
+  const rect = [L.c0 * TILE, L.r0 * TILE, (L.c0 + L.cols) * TILE, (L.r0 + L.rows) * TILE];
+  const reach = [rect[0] - 60, rect[1] - 60, rect[2] + 60, rect[3] + 60];
+  const fr = [reach[0] / W, reach[1] / H, reach[2] / W, reach[3] / H];          /* the same, in frame fractions */
+  const tol = 0.22;
+  const scale = 2 ** (k - 3);
+  const line = (f) => ({ pts: simplify(f.pts.map(S), tol), bb: [f.bb[0] * W, f.bb[1] * H, f.bb[2] * W, f.bb[3] * H] });
+  const area = (f) => ({ rings: f.rings.map((r) => simplify(r.map(S), tol)).filter((r) => r.length > 2), holed: f.holed, bb: [f.bb[0] * W, f.bb[1] * H, f.bb[2] * W, f.bb[3] * H] });
+  const big = (f, min) => (f.bb[2] - f.bb[0]) * W >= min || (f.bb[3] - f.bb[1]) * H >= min;
+  const inReach = (f) => hits(f.bb, fr);
+  const widthOf = (r) => { const w = ROADS[k][r.base] || 0; return r.link ? w * LINK_SCALE : w; };
+
+  const lv = { k, W, H, rect, L };
+  lv.parks = parks.filter((f) => inReach(f) && big(f, 2)).map(area);
+  lv.water = water.filter((f) => inReach(f) && big(f, 1.5)).map(area);
+  lv.waterLines = waterLines.filter((f) => inReach(f) && WATERLINE[f.kind] * scale >= 0.5).map((f) => ({ ...line(f), w: Math.max(0.6, f.w * scale) }));
+  lv.plazas = k >= 3 ? plazas.filter(inReach).map(area) : [];
+  lv.buildings = [];
+  if (k >= BUILDINGS_FROM) {
+    /* at level 3 the buildings fade out towards the edge of the area they were fetched for, so that no line shows */
+    const D = [toFrame(DETAIL.west, DETAIL.north), toFrame(DETAIL.east, DETAIL.south)], ramp = 0.022;
+    for (const f of buildings) {
+      if (!inReach(f) || !big(f, 1.2)) continue;
+      const c = [(f.bb[0] + f.bb[2]) / 2, (f.bb[1] + f.bb[3]) / 2];
+      const edge = Math.min(c[0] - D[0][0], D[1][0] - c[0], c[1] - D[0][1], D[1][1] - c[1]);
+      const band = k > 3 ? 3 : Math.max(0, Math.min(3, Math.floor((edge / ramp) * 4)));
+      lv.buildings.push({ ...area(f), band });
+    }
+  }
+  lv.roads = roads.filter((r) => inReach(r) && widthOf(r) > 0).map((r) => ({ ...line(r), base: r.base, link: r.link, w: widthOf(r) }));
+  lv.rails = rails.filter(inReach).map((r) => ({ ...line(r), kind: r.kind, under: r.under }));
+  lv.stations = STATION_R[k] ? stations.filter((s) => s.p[0] >= fr[0] && s.p[0] <= fr[2] && s.p[1] >= fr[1] && s.p[1] <= fr[3]).map((s) => ({ p: S(s.p), tags: s.tags })) : [];
+  return lv;
 }
 
-/* Text and source geometry for every label, before any measuring. A road is matched
-   by its OSM name:en, so the English text is that tag; a name with no way inside the
-   extract is skipped with a warning and never drawn. */
-const labelSpecs = [];
-for (const spec of ROAD_LABELS) {
-  const list = majorNamed(spec.osm);
-  if (!list.length) { warnings.push(`no road named "${spec.osm}" in the extract: not labelled`); continue; }
-  labelSpecs.push({ ...spec, kind: "road", lines: centreOf(list, 20), text: { en: spec.osm, th: commonest(list.map((w) => w.tags["name:th"] || w.tags.name)) } });
+/* the drawing (no names) for one rectangle of a level */
+function drawBase(lv, r) {
+  const k = lv.k, pad = 26, clip = [r[0] - pad, r[1] - pad, r[2] + pad, r[3] + pad];
+  const here = (list) => list.filter((f) => hits(f.bb, clip));
+  const cut = (list) => here(list).flatMap((f) => clipLine(f.pts, clip));
+  const fill = (list, colour, extra = "") => {
+    const simple = [], holed = [];
+    for (const f of here(list)) (f.holed ? holed : simple).push(f.rings);
+    return (simple.length ? `<path fill="${colour}" ${extra} d="${simple.flat().map(dRing).join("")}"/>` : "") + holed.map((rings) => `<path fill="${colour}" ${extra} fill-rule="evenodd" d="${rings.map(dRing).join("")}"/>`).join("");
+  };
+  const out = [`<rect x="${r[0]}" y="${r[1]}" width="${r[2] - r[0]}" height="${r[3] - r[1]}" fill="${C.ground}"/>`, fill(lv.parks, C.park), fill(lv.water, C.water)];
+  const wl = {};
+  for (const f of here(lv.waterLines)) (wl[n2(f.w)] ||= []).push(...clipLine(f.pts, clip));
+  for (const [w, lines] of Object.entries(wl)) out.push(stroke(lines, C.water, +w, ROUND));
+  for (let band = 0; band <= 3; band++) out.push(fill(lv.buildings.filter((b) => b.band === band), C.building, band < 3 ? `fill-opacity="${[0.2, 0.45, 0.72][band]}"` : ""));
+  out.push(fill(lv.plazas, C.road, 'fill-opacity="0.55"'));
+  /* roads: by class and width. Far out they are plain lines in a darker tone; closer in, white with an edge. */
+  const groups = new Map();
+  for (const f of here(lv.roads)) { const id = f.base + (f.link ? "_link" : ""); if (!groups.has(id)) groups.set(id, { base: f.base, link: f.link, w: f.w, lines: [] }); groups.get(id).lines.push(...clipLine(f.pts, clip)); }
+  const order = [...groups.values()].sort((a, b) => DRAW_ORDER.indexOf(a.base) * 2 + (a.link ? 0 : 1) - (DRAW_ORDER.indexOf(b.base) * 2 + (b.link ? 0 : 1)));
+  const major = order.filter((g) => MAJOR.includes(g.base)), minor = order.filter((g) => !MAJOR.includes(g.base));
+  if (k <= 1) {
+    for (const g of major) out.push(stroke(g.lines, C.far, g.w, ROUND));
+  } else {
+    if (k >= 3) for (const g of minor) out.push(stroke(g.lines, C.hair, g.w + 1.1, ROUND));
+    for (const g of major) out.push(stroke(g.lines, C.casing, g.w + CASING[k] * 2, ROUND));
+    for (const g of minor) out.push(stroke(g.lines, k === 2 ? C.hair : C.road, g.w, ROUND));
+    for (const g of major) out.push(stroke(g.lines, C.road, g.w, ROUND));
+  }
+  /* railways. State railway: a thin, lighter line (with small ticks from level 3). Airport Rail Link: dashed
+     ink. BTS and the raised parts of the MRT: solid ink. The MRT underground: dotted, lighter. */
+  const w = RAIL_W[k], f = w / 1.6;
+  const rail = (kind, under) => lv.rails.filter((x) => x.kind === kind && x.under === under && hits(x.bb, clip)).flatMap((x) => clipLine(x.pts, clip));
+  out.push(stroke(rail("rail", false), C.ink, w * 0.7, 'stroke-opacity="0.5" stroke-linejoin="round"'));
+  if (k >= 3) out.push(stroke(rail("rail", false), C.ink, w * 3.2, `stroke-opacity="0.5" stroke-dasharray="${n2(0.8 * f)} ${n2(6.4 * f)}"`));
+  for (const kind of ["mrt", "bts", "arl"]) out.push(stroke(rail(kind, true), C.ink, w * 0.85, `stroke-opacity="0.5" stroke-dasharray="${n2(0.1)} ${n2(w * 2.4)}" stroke-linecap="round"`));
+  out.push(stroke(rail("arl", false), C.ink, w, `stroke-dasharray="${n2(6.2 * f)} ${n2(3.4 * f)}" stroke-linejoin="round"`));
+  out.push(stroke(rail("mrt", false), C.ink, w, ROUND));
+  out.push(stroke(rail("bts", false), C.ink, w, ROUND));
+  const sr = STATION_R[k];
+  if (sr) out.push(lv.stations.filter((s) => s.p[0] > clip[0] && s.p[0] < clip[2] && s.p[1] > clip[1] && s.p[1] < clip[3]).map((s) => `<circle cx="${n2(s.p[0])}" cy="${n2(s.p[1])}" r="${sr}" fill="${C.road}" stroke="${C.ink}" stroke-width="${n2(Math.max(0.9, sr * 0.42))}"/>`).join(""));
+  return out.join("\n");
 }
-for (const spec of WATER_LABELS) {
-  const list = ways.filter((w) => w.tags?.waterway && w.tags["name:en"] === spec.osm && !w.tags.tunnel);
-  if (!list.length) { warnings.push(`no waterway named "${spec.osm}" in the extract: not labelled`); continue; }
-  labelSpecs.push({ ...spec, kind: "water", lines: centreOf(list, 20), text: { en: spec.en || spec.osm, th: commonest(list.map((w) => w.tags["name:th"] || w.tags.name)) } });
-}
-for (const spec of RAIL_LABELS) {
-  const lines = collapseParallel(chains([spec.line]), TRACK_TOL).filter((l) => touchesFrame(l, 0));
-  if (!lines.length) { warnings.push(`rail line "${spec.line}" is not in the frame: not labelled`); continue; }
-  labelSpecs.push({ ...spec, kind: "rail", small: true, lines, text: { en: spec.en, th: spec.th } });
-}
-const labelText = (spec, lang) => (TYPE[lang].upper ? spec.text[lang].toUpperCase() : spec.text[lang]);
 
-/* === Page: fonts, styles, SVG ============================================= */
+/* === Names ================================================================
+   What is written at a level, in order of precedence: stations, places, the main roads, water, parks,
+   other roads, streets. A name is written along its line where the line is straight enough, upright and
+   never upside down, and never over a name already written or over one of the site's own markers. */
+function candidates(lv, lang) {
+  const k = lv.k, { W, H } = lv, font = FONT[lang], S = (p) => [p[0] * W, p[1] * H];
+  const size = (kind) => (TYPE[kind][k] ? TYPE[kind][k] + font.plus : 0);
+  const text = (s) => (font.upper ? s.toUpperCase() : s);
+  const reach = [lv.rect[0] - 40, lv.rect[1] - 40, lv.rect[2] + 40, lv.rect[3] + 40], fr = [reach[0] / W, reach[1] / H, reach[2] / W, reach[3] / H];
+  const out = [];
+  /* stations: not the ones that have a marker of the site's own, which names them itself */
+  if (size("station")) {
+    const seen = [];
+    for (const s of stations) {
+      const name = nameOf(s.tags, lang);
+      if (!name || s.p[0] < fr[0] || s.p[0] > fr[2] || s.p[1] < fr[1] || s.p[1] > fr[3]) continue;
+      if (ownPlaces.some((o) => o.kind === "transport" && metres(o.p, s.p) < 160)) continue;
+      if (seen.some((o) => o.name === name && metres(o.p, s.p) < 450)) continue;
+      seen.push({ name, p: s.p });
+      out.push({ kind: "station", pri: 0, text: name, size: size("station"), weight: 700, spacing: 0, fill: C.ink, point: S(s.p), off: STATION_R[k] + 3.5 });
+    }
+  }
+  if (size("place")) {
+    const rank = { suburb: 0, quarter: 1 }, allow = k <= 1 ? 0 : 1;
+    for (const n of placeNodes.slice().sort((a, b) => rank[a.tags.place] - rank[b.tags.place])) {
+      const name = nameOf(n.tags, lang);
+      if (!name || rank[n.tags.place] > allow) continue;
+      if (out.some((o) => o.kind === "place" && o.text === text(name) && Math.hypot(o.point[0] - S(n.p)[0], o.point[1] - S(n.p)[1]) < 700)) continue;   /* a district and its subdistrict often share a name: once is enough */
+      out.push({ kind: "place", pri: 1 + rank[n.tags.place] * 0.1, text: text(name), size: size("place") - rank[n.tags.place] * 0.8, weight: 700, spacing: lang === "en" ? 0.14 : 0, fill: C.ink, opacity: 0.6, point: S(n.p), centred: true });
+    }
+  }
+  /* roads, joined into whole lines by name */
+  const byName = new Map();
+  for (const r of roads) {
+    if (!hits(r.bb, fr)) continue;
+    const tier = ["motorway", "trunk", "primary"].includes(r.base) ? "roadA" : ["secondary", "tertiary"].includes(r.base) ? "roadB" : "roadC";
+    if (r.link || !size(tier) || (r.base === "service" && k < 5)) continue;
+    const name = nameOf(r.tags, lang);
+    if (!name) continue;
+    const id = tier + "|" + name;
+    if (!byName.has(id)) byName.set(id, { tier, name, pieces: [] });
+    byName.get(id).pieces.push({ pts: r.pts.map(S), a: r.a, b: r.b });
+  }
+  for (const g of byName.values()) out.push({ kind: g.tier, pri: g.tier === "roadA" ? 2 : g.tier === "roadB" ? 5 : 6, text: text(g.name), size: size(g.tier), weight: 600, spacing: font.spacing, fill: C.label, lines: stitch(g.pieces, 55).map((l) => simplify(l, 0.6)), every: SPACING[g.tier], tight: g.tier === "roadC" && k === 3 });
+  /* rivers and canals */
+  const wn = new Map();
+  for (const f of waterLines) {
+    if (!hits(f.bb, fr) || (f.kind !== "river" && k < 3) || !/^(river|canal)$/.test(f.kind)) continue;
+    let name = nameOf(f.tags, lang);
+    if (!name) continue;
+    if (lang === "en") name = name.replace(/^Khlong (.+)$/, "$1 Canal");
+    if (!wn.has(name)) wn.set(name, []);
+    wn.get(name).push({ pts: f.pts.map(S), a: f.a, b: f.b });
+  }
+  for (const [name, pieces] of wn) out.push({ kind: "water", pri: 3, text: text(name), size: size("water"), weight: 600, spacing: font.spacing, fill: C.waterInk, lines: stitch(pieces, 70).map((l) => simplify(l, 0.8)), every: SPACING.water });
+  if (size("park")) for (const f of parks) {
+    const name = nameOf(f.tags, lang);
+    if (!name || !hits(f.bb, fr)) continue;
+    const bw = (f.bb[2] - f.bb[0]) * W, bh = (f.bb[3] - f.bb[1]) * H;
+    out.push({ kind: "park", pri: 4, text: text(name), size: size("park"), weight: 600, spacing: font.spacing, fill: C.parkInk, point: S(centroid(f.rings[0])), centred: true, room: [bw, bh] });
+  }
+  return out.sort((a, b) => a.pri - b.pri);
+}
+
+function place(lv, lang, list, measured) {
+  const font = FONT[lang], placed = [], grid = new Map(), CELL = 160;
+  const cornersOf = (l, pad) => { const a = (l.angle * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a), hw = l.w / 2 + pad, hh = l.h / 2 + pad; return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([u, v]) => [l.x + u * c - v * s, l.y + u * s + v * c]); };
+  const overlap = (A, B) => [A, B].every((poly) => poly.every((p, i) => {
+    const q = poly[(i + 1) % 4], nx = q[1] - p[1], ny = p[0] - q[0];
+    let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+    for (const r of A) { const d = r[0] * nx + r[1] * ny; if (d < a0) a0 = d; if (d > a1) a1 = d; }
+    for (const r of B) { const d = r[0] * nx + r[1] * ny; if (d < b0) b0 = d; if (d > b1) b1 = d; }
+    return a1 >= b0 && b1 >= a0;
+  }));
+  const cells = (box) => { const bb = bboxOf(box), out = []; for (let x = Math.floor(bb[0] / CELL); x <= Math.floor(bb[2] / CELL); x++) for (let y = Math.floor(bb[1] / CELL); y <= Math.floor(bb[3] / CELL); y++) out.push(x + ":" + y); return out; };
+  const free = (l) => { const box = cornersOf(l, HALO + 1.5); for (const c of cells(box)) for (const o of grid.get(c) || []) if (overlap(box, o.box)) return false; return true; };
+  const keep = (l) => { l.box = cornersOf(l, HALO + 1.5); for (const c of cells(l.box)) { if (!grid.has(c)) grid.set(c, []); grid.get(c).push(l); } placed.push(l); };
+  /* The hotel's point is kept clear, and so are the site's own markers at the levels where they show (zoomed
+     out, the markers are put away and the district names take their place). */
+  const S = (p) => [p[0] * lv.W, p[1] * lv.H];
+  for (const o of lv.k >= 3 ? [...ownPlaces.map((x) => x.p), hotelAt] : [hotelAt]) { const p = S(o), r = lv.k >= 3 ? 15 : 9; const box = [[p[0] - r, p[1] - r], [p[0] + r, p[1] - r], [p[0] + r, p[1] + r], [p[0] - r, p[1] + r]]; for (const c of cells(box)) { if (!grid.has(c)) grid.set(c, []); grid.get(c).push({ box }); } }
+  for (const s of lv.stations) { const r = STATION_R[lv.k] + 1.2, p = s.p, box = [[p[0] - r, p[1] - r], [p[0] + r, p[1] - r], [p[0] + r, p[1] + r], [p[0] - r, p[1] + r]]; for (const c of cells(box)) { if (!grid.has(c)) grid.set(c, []); grid.get(c).push({ box }); } }
+
+  /* A name never sits on a raised railway line, which is drawn in ink. The lines are sampled every few
+     pixels; a name that would lie along one is moved just clear of it, to the nearer side, and a spot that a
+     line merely crosses is passed over. */
+  const railDots = new Map(), RC = 64, railW = RAIL_W[lv.k];
+  for (const r of lv.rails) {
+    if (r.under) continue;
+    for (let i = 1; i < r.pts.length; i++) {
+      const n = Math.max(1, Math.ceil(dist(r.pts[i - 1], r.pts[i]) / 2.5));
+      for (let q = 0; q <= n; q++) { const p = lerp(r.pts[i - 1], r.pts[i], q / n), c = Math.floor(p[0] / RC) + ":" + Math.floor(p[1] / RC); if (!railDots.has(c)) railDots.set(c, []); railDots.get(c).push(p); }
+    }
+  }
+  /* rail points near a label, in the label's own axes: [along, across] */
+  const railNear = (l, reach) => {
+    const a = (l.angle * Math.PI) / 180, ux = Math.cos(a), uy = Math.sin(a), R = l.w / 2 + reach, out = [];
+    for (let x = Math.floor((l.x - R) / RC); x <= Math.floor((l.x + R) / RC); x++) for (let y = Math.floor((l.y - R) / RC); y <= Math.floor((l.y + R) / RC); y++) for (const p of railDots.get(x + ":" + y) || []) {
+      const dx = p[0] - l.x, dy = p[1] - l.y, along = dx * ux + dy * uy, across = -dx * uy + dy * ux;
+      if (Math.abs(along) <= l.w / 2 + 2 && Math.abs(across) <= reach) out.push([along, across]);
+    }
+    return out;
+  };
+  const besideRails = (l) => {
+    const reach = l.h / 2 + railW / 2 + HALO, near = railNear(l, reach);
+    if (!near.length) return [l];
+    let a0 = Infinity, a1 = -Infinity, lo = Infinity, hi = -Infinity;
+    for (const [al, ac] of near) { if (al < a0) a0 = al; if (al > a1) a1 = al; if (ac < lo) lo = ac; if (ac > hi) hi = ac; }
+    if (a1 - a0 < l.w * 0.5) return [];                                   /* a line crossing the spot: not here */
+    const a = (l.angle * Math.PI) / 180, vx = -Math.sin(a), vy = Math.cos(a), m = l.h / 2 + railW / 2 + HALO * 0.7;
+    return [hi + m, lo - m].sort((p, q) => Math.abs(p) - Math.abs(q)).map((by) => ({ ...l, x: l.x + vx * by, y: l.y + vy * by })).filter((o) => !railNear(o, o.h / 2 + railW / 2).length);
+  };
+
+  list.forEach((cand, i) => {
+    const m = measured[i], w = m.w, h = cand.size * font.line, base = { text: cand.text, kind: cand.kind, size: cand.size, weight: cand.weight, spacing: cand.spacing, fill: cand.fill, opacity: cand.opacity || 1, w, h, cap: m.cap };
+    if (cand.point) {
+      const [px, py] = cand.point;
+      if (cand.room && (cand.room[0] < w * 0.9 || cand.room[1] < h * 1.1)) return;
+      /* a name centred on its place is nudged up or down if a railway line would run through it */
+      const spots = cand.centred ? [[px, py], [px, py - h * 0.95], [px, py + h * 0.95], [px, py - h * 1.9], [px, py + h * 1.9], [px - w * 0.6, py - h], [px + w * 0.6, py - h], [px - w * 0.6, py + h], [px + w * 0.6, py + h]] : [[px + cand.off + w / 2, py], [px - cand.off - w / 2, py], [px, py + cand.off + h / 2], [px, py - cand.off - h / 2]];
+      for (const [x, y] of spots) { const l = { ...base, x, y, angle: 0 }; if (free(l) && !railNear(l, l.h / 2 + railW / 2 + 1).length) { keep(l); return; } }
+      if (cand.centred && cand.kind === "place" && cand.pri < 1.05) { const l = { ...base, x: px, y: py, angle: 0 }; if (free(l)) keep(l); }
+      return;
+    }
+    const sagMax = Math.max(1.8, cand.size * 0.24), same = [];
+    for (const line of cand.lines) {
+      const total = lengthOf(line), need = w + 14;
+      if (total < need * (cand.tight ? 1.5 : 1)) continue;
+      const n = Math.max(1, Math.round(total / cand.every));
+      for (let j = 0; j < n; j++) {
+        const mid = (total * (j + 0.5)) / n, slack = Math.max(0, total / n / 2 - need / 2);
+        for (const shift of [0, 0.5, -0.5, 1, -1]) {
+          const s = Math.min(Math.max(mid + shift * slack, need / 2), total - need / 2);
+          const a = pointAt(line, s - w / 2), b = pointAt(line, s + w / 2), c = pointAt(line, s);
+          let sag = 0;
+          for (let q = 1; q < 8; q++) sag = Math.max(sag, nearestOnSeg(pointAt(line, s - w / 2 + (w * q) / 8), a, b));
+          if (sag > sagMax) continue;
+          let angle = (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI;
+          if (angle > 90) angle -= 180; else if (angle <= -90) angle += 180;
+          const on = { ...base, x: (c[0] + (a[0] + b[0]) / 2) / 2, y: (c[1] + (a[1] + b[1]) / 2) / 2, angle };
+          if (same.some((o) => Math.hypot(o.x - on.x, o.y - on.y) < cand.every * 0.72)) continue;
+          const l = besideRails(on).find((o) => free(o));
+          if (!l) continue;
+          keep(l); same.push(l);
+          break;
+        }
+      }
+    }
+  });
+  return placed;
+}
+const drawNames = (labels, r) => labels.filter((l) => hits(bboxOf(l.box), [r[0] - 4, r[1] - 4, r[2] + 4, r[3] + 4]))
+  .map((l) => `<text transform="translate(${n2(l.x)} ${n2(l.y)}) rotate(${n2(l.angle)})" y="${n2(l.cap / 2)}" font-size="${l.size}" font-weight="${l.weight}" letter-spacing="${n2(l.size * l.spacing)}" fill="${l.fill}"${l.opacity < 1 ? ` fill-opacity="${l.opacity}"` : ""}>${esc(l.text)}</text>`).join("\n");
+
+/* === Pages ================================================================ */
 const fontData = async (file) => (await readFile(at("src/assets/fonts", file))).toString("base64");
 const FONT_CSS = `
 @font-face { font-family: "Manrope"; font-style: normal; font-weight: 300 800; src: url(data:font/woff2;base64,${await fontData("manrope-latin.woff2")}) format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 @font-face { font-family: "Noto Sans Thai"; font-style: normal; font-weight: 300 700; src: url(data:font/woff2;base64,${await fontData("noto-sans-thai-thai.woff2")}) format("woff2");
   unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC; }`;
-const styleFor = (lang, overlay = false) => `${FONT_CSS}
-html, body { margin: 0; background: ${overlay ? "transparent" : C.ground}; }
+const pageOf = (lang, inner, r, clear) => `<!doctype html><html lang="${lang || "en"}"><head><meta charset="utf-8"><style>${lang ? FONT_CSS : ""}
+html, body { margin: 0; background: ${clear ? "transparent" : C.ground}; }
 svg { display: block; }
-text { text-rendering: geometricPrecision; font-kerning: normal; }
-.lbl { font: 600 ${TYPE[lang].size}px ${TYPE[lang].family}; letter-spacing: ${TYPE[lang].spacing}; text-anchor: middle;
-  fill: ${overlay ? "#FFFFFF" : C.label}; stroke: ${overlay ? "rgba(14, 22, 26, 0.86)" : C.ground}; stroke-width: ${HALO * 2}px; stroke-linejoin: round; paint-order: stroke;${overlay ? " font-weight: 700;" : ""} }
-.lbl.small { font-size: ${TYPE[lang].small}px; }
-.chk { font: 700 13px ${TYPE[lang].family}; fill: #C8102E; stroke: #FFFFFF; stroke-width: 4px; stroke-linejoin: round; paint-order: stroke; }
-.chk-x { stroke: #C8102E; stroke-width: 2.2; stroke-linecap: round; fill: none; }`;
-const pageFor = (lang, svg, overlay = false) => `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><style>${styleFor(lang, overlay)}</style></head><body>${svg}</body></html>`;
-
+text { font-family: ${lang ? FONT[lang].family : "sans-serif"}; text-anchor: middle; text-rendering: geometricPrecision; font-kerning: normal; stroke: ${C.ground}; stroke-width: ${HALO * 2}px; stroke-linejoin: round; paint-order: stroke; }
+</style></head><body><svg id="plate" xmlns="http://www.w3.org/2000/svg" width="${r[2] - r[0]}" height="${r[3] - r[1]}" viewBox="${r[0]} ${r[1]} ${r[2] - r[0]} ${r[3] - r[1]}">${inner}</svg></body></html>`;
 async function fontsReady(page, lang) {
-  /* the page must really be using the site's fonts, never a system fallback */
   const ok = await page.evaluate(async (th) => {
     const faces = [await document.fonts.load('600 13px "Manrope"', "Road")];
     if (th) faces.push(await document.fonts.load('600 14px "Noto Sans Thai"', "ถนน"));
@@ -571,207 +569,129 @@ async function fontsReady(page, lang) {
   if (!ok) throw new Error(`web fonts did not load for "${lang}"`);
 }
 
-/* the base drawing, shared by both languages */
-const stroke = (lines, colour, width, extra = "") => (lines?.length ? `<path fill="none" stroke="${colour}" stroke-width="${n2(width)}" ${extra} d="${lines.map(dLine).join("")}"/>` : "");
-const ROUND = 'stroke-linecap="round" stroke-linejoin="round"';
-const major = roadOrder.filter((c) => ROADS[c.replace(/_link$/, "")].major), minor = roadOrder.filter((c) => !ROADS[c.replace(/_link$/, "")].major);
-const baseSvg = [
-  `<rect width="${W}" height="${H}" fill="${C.ground}"/>`,
-  areaSvg(parks, C.park),
-  areaSvg(water, C.water),
-  Object.entries(waterLines).map(([w, lines]) => stroke(lines, C.water, +w, ROUND)).join(""),
-  areaSvg(buildings, C.building),
-  areaSvg(plazas, C.road, 'fill-opacity="0.55"'),      /* pedestrian squares: quieter than a street */
-  /* casings first, then every road surface, so that junctions run together cleanly */
-  major.map((c) => stroke(roadLines[c], C.casing, roadWidth(c) + CASING * 2, ROUND)).join(""),
-  minor.map((c) => stroke(roadLines[c], C.road, roadWidth(c), ROUND)).join(""),
-  major.map((c) => stroke(roadLines[c], C.road, roadWidth(c), ROUND)).join(""),
-  /* ordinary railway: a thin, lighter line with small ticks */
-  stroke(rails.rail, C.ink, 1.1, 'stroke-opacity="0.5" stroke-linejoin="round"'),
-  stroke(rails.rail, C.ink, 5, 'stroke-opacity="0.5" stroke-dasharray="1.1 8.9"'),
-  /* Airport Rail Link: dashed ink. BTS: solid ink. */
-  stroke(rails.arl, C.ink, 2.2, 'stroke-dasharray="9 5" stroke-linejoin="round"'),
-  stroke(rails.bts, C.ink, 2.2, ROUND),
-].join("\n");
-
 const browser = await chromium.launch({ channel: "msedge", headless: true });
-const context = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+const BLOCK = 4, SIDE = BLOCK * TILE;
+const context = await browser.newContext({ viewport: { width: SIDE, height: SIDE }, deviceScaleFactor: 2 });
 const page = await context.newPage();
-/* a second page at twice the density, for the large plate and the names overlay */
-const context2 = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 2 });
-const page2 = await context2.newPage();
+const shoot = async (lang, inner, r, clear) => {
+  await page.setContent(pageOf(lang, inner, r, clear));
+  if (lang) await fontsReady(page, lang);
+  return page.screenshot({ type: "png", clip: { x: 0, y: 0, width: r[2] - r[0], height: r[3] - r[1] }, omitBackground: !!clear });
+};
+const measure = async (lang, list) => {
+  await page.setContent(pageOf(lang, "", [0, 0, 10, 10], true));
+  await fontsReady(page, lang);
+  return page.evaluate(({ items, family, sample }) => {
+    const ctx = document.createElement("canvas").getContext("2d");
+    return items.map((it) => {
+      ctx.font = `${it.weight} ${it.size}px ${family}`;
+      ctx.letterSpacing = (it.size * it.spacing).toFixed(2) + "px";
+      const w = ctx.measureText(it.text).width;
+      ctx.letterSpacing = "0px";
+      return { w, cap: ctx.measureText(sample).actualBoundingBoxAscent };
+    });
+  }, { items: list.map((c) => ({ text: c.text, size: c.size, weight: c.weight, spacing: c.spacing })), family: FONT[lang].family, sample: FONT[lang].cap });
+};
 
-const OUT_IMG = at("src/assets/img"), OUT_PRIVATE = at("_private/map");
-await mkdir(OUT_IMG, { recursive: true });
-await mkdir(OUT_PRIVATE, { recursive: true });
-const written = [];
-const files = {};
-const placedByLang = {};
+/* The squares go straight into the published folder, as the photographs do (docs/media): they are made by
+   this tool, not by the build, and the build leaves them alone. */
+const OUT = at("docs/map"), OUT_IMG = at("src/assets/img");
+const report = { levels: [], warnings: [], names: {} };
+const have = { en: [], th: [] };
+let bytes = 0, files = 0;
+const blocksOf = (L) => { const out = []; for (let r = L.r0; r < L.r0 + L.rows; r += BLOCK) for (let c = L.c0; c < L.c0 + L.cols; c += BLOCK) out.push({ c, r, cols: Math.min(BLOCK, L.c0 + L.cols - c), rows: Math.min(BLOCK, L.r0 + L.rows - r) }); return out; };
+const cutTiles = async (png, b, dir, opts, isEmpty) => {
+  const made = [];
+  for (let j = 0; j < b.rows; j++) for (let i = 0; i < b.cols; i++) {
+    const { data, info } = await sharp(png).extract({ left: i * TILE * 2, top: j * TILE * 2, width: TILE * 2, height: TILE * 2 }).raw().toBuffer({ resolveWithObject: true });
+    if (isEmpty) { let ink = false; for (let q = 3; q < data.length; q += 4) if (data[q] > 0) { ink = true; break; } if (!ink) { made.push(false); continue; } }
+    const file = path.join(dir, `${b.c + i}_${b.r + j}.webp`);
+    await sharp(data, { raw: info }).webp(opts).toFile(file);
+    bytes += (await stat(file)).size; files++;
+    made.push(true);
+  }
+  return made;
+};
 
 try {
-  for (const lang of ["en", "th"]) {
-    const type = TYPE[lang];
-    /* 1. measure every label in the real fonts: its length, how far its ink reaches above
-          and below the baseline, and the height of a capital (or of a Thai consonant) */
-    const texts = labelSpecs.map((s) => labelText(s, lang));
-    await page.setContent(pageFor(lang, `<svg width="${W}" height="${H}">${labelSpecs.map((s, i) => `<text id="m${i}" class="lbl${s.small ? " small" : ""}">${esc(texts[i])}</text>`).join("")}</svg>`));
-    await fontsReady(page, lang);
-    const measured = await page.evaluate(({ items, family, sample }) => {
-      const ctx = document.createElement("canvas").getContext("2d");
-      return items.map(({ text, px }, i) => {
-        ctx.font = `600 ${px}px ${family}`;
-        const ink = ctx.measureText(text);
-        return { width: document.getElementById("m" + i).getComputedTextLength(), ascent: ink.actualBoundingBoxAscent, descent: ink.actualBoundingBoxDescent, cap: ctx.measureText(sample).actualBoundingBoxAscent };
-      });
-    }, { items: labelSpecs.map((s, i) => ({ text: texts[i], px: s.small ? type.small : type.size })), family: type.family, sample: type.capSample });
-
-    /* 2. place each label on its line */
-    const placed = [];
-    labelSpecs.forEach((spec, i) => {
-      const text = texts[i], { width, ascent, descent, cap } = measured[i];
-      const p = placeAlong(spec.lines, spec.near, width);
-      if (!p) { warnings.push(`[${lang}] "${text}" does not fit inside the frame along its line: not labelled`); return; }
-      /* The baseline is set so that the capitals (or the Thai consonants) are centred on
-         the line. `above` and `below` are how far the ink then reaches to either side;
-         Thai vowels and tone marks make `above` larger than `below`. */
-      const above = ascent - cap / 2, below = descent + cap / 2;
-      /* A name must never sit on an ink rail line. Where a line runs along the label
-         (above the middle of a road, or the label's own line), find how far to either
-         side the rails lie and move the label just clear of them. `v` is the label's
-         own "down" direction; offsets are measured along it. */
-      const a = rad(p.angle), ux = Math.cos(a), uy = Math.sin(a), vx = -uy, vy = ux;
-      let lo = Infinity, hi = -Infinity;
-      for (let t = -width / 2; t <= width / 2; t += 4) {
-        const q = [p.x + ux * t, p.y + uy * t];
-        for (const line of allRails) {
-          const n = nearestOnLine(q, line);
-          if (n.d > 36 || Math.abs((n.point[0] - q[0]) * ux + (n.point[1] - q[1]) * uy) > 6) continue;   /* only lines running alongside */
-          const off = (n.point[0] - q[0]) * vx + (n.point[1] - q[1]) * vy;
-          lo = Math.min(lo, off); hi = Math.max(hi, off);
-        }
+  if (!ONLY_LEVELS && !ONLY) await rm(OUT, { recursive: true, force: true });
+  const labelsAt = { en: {}, th: {} };
+  for (const L of LEVELS) {
+    if (ONLY_LEVELS && !ONLY_LEVELS.includes(L.k)) continue;
+    const lv = levelOf(L.k), t0 = Date.now();
+    const blocks = blocksOf(L);
+    if (ONLY !== "names") {
+      const dir = path.join(OUT, "base", String(L.k));
+      await mkdir(dir, { recursive: true });
+      for (const b of blocks) {
+        const r = [b.c * TILE, b.r * TILE, (b.c + b.cols) * TILE, (b.r + b.rows) * TILE];
+        await cutTiles(await shoot(null, drawBase(lv, r), r, false), b, dir, { quality: 80, effort: 5, smartSubsample: true }, false);
       }
-      const margin = HALO + RAIL_GAP;
-      let shift = spec.shift || 0;
-      if (hi > shift - above - margin && lo < shift + below + margin) {
-        const up = lo - below - margin, down = hi + above + margin;
-        shift = spec.side ? (spec.side < 0 ? up : down) : Math.abs(up - shift) <= Math.abs(down - shift) ? up : down;
-        if (hi - lo > 24) warnings.push(`[${lang}] "${text}" has rail lines spread over ${Math.round(hi - lo)} px beside it`);
-      }
-      const x = p.x + vx * shift, y = p.y + vy * shift;
-      placed.push({ text, kind: spec.kind, small: !!spec.small, x, y, angle: p.angle, shift, width, height: 2 * Math.max(above, below), cap, sag: p.sag });
-      if (p.sag > 4) warnings.push(`[${lang}] "${text}" sits on a bend (the road bows ${p.sag.toFixed(1)} px away from the text)`);
-    });
-    /* 3. sanity checks on the result: overlaps, and labels that a pin would cover */
-    const corners = (l, pad) => { const a = rad(l.angle), c = Math.cos(a), s = Math.sin(a), hw = l.width / 2 + pad, hh = l.height / 2 + pad; return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([u, v]) => [l.x + u * c - v * s, l.y + u * s + v * c]); };
-    const overlap = (A, B) => [A, B].every((poly) => poly.every((p, i) => {
-      const q = poly[(i + 1) % 4], nx = q[1] - p[1], ny = p[0] - q[0];
-      const span = (pts) => pts.map((r) => r[0] * nx + r[1] * ny);
-      const a = span(A), b = span(B);
-      return Math.max(...a) >= Math.min(...b) && Math.max(...b) >= Math.min(...a);
-    }));
-    for (let i = 0; i < placed.length; i++) {
-      for (let j = i + 1; j < placed.length; j++) if (overlap(corners(placed[i], HALO + 2), corners(placed[j], HALO + 2))) warnings.push(`[${lang}] labels overlap: "${placed[i].text}" and "${placed[j].text}"`);
-      for (const c of checks) { const box = corners(placed[i], 18), dot = [c.px, c.px, c.px, c.px]; if (overlap(box, dot)) warnings.push(`[${lang}] "${placed[i].text}" is within 18 px of the ${c.key} point`); }
     }
-    placedByLang[lang] = placed;
+    const counts = {};
+    for (const lang of ["en", "th"]) {
+      const list = candidates(lv, lang), labels = place(lv, lang, list, await measure(lang, list));
+      labelsAt[lang][L.k] = labels;
+      counts[lang] = labels.length;
+      if (ONLY === "base") continue;
+      const dir = path.join(OUT, lang, String(L.k));
+      await rm(dir, { recursive: true, force: true });
+      await mkdir(dir, { recursive: true });
+      const bits = new Array(L.cols * L.rows).fill("0");
+      for (const b of blocks) {
+        const r = [b.c * TILE, b.r * TILE, (b.c + b.cols) * TILE, (b.r + b.rows) * TILE];
+        const inner = drawNames(labels, r);
+        if (!inner) continue;
+        const made = await cutTiles(await shoot(lang, inner, r, true), b, dir, { quality: 62, alphaQuality: 78, effort: 6 }, true);
+        made.forEach((ok, n) => { if (ok) bits[(b.r - L.r0 + Math.floor(n / b.cols)) * L.cols + (b.c - L.c0 + (n % b.cols))] = "1"; });
+      }
+      have[lang][L.k] = bits.join("");
+    }
+    report.levels.push({ k: L.k, tiles: L.cols * L.rows, roads: lv.roads.length, buildings: lv.buildings.length, names: counts, seconds: Math.round((Date.now() - t0) / 100) / 10 });
+    console.log(`level ${L.k}: ${L.cols} x ${L.rows} tiles, ${lv.roads.length} roads, ${lv.buildings.length} buildings, names en ${counts.en} / th ${counts.th}, ${Math.round((Date.now() - t0) / 1000)} s`);
+    lv.done = true;
 
-    /* 4. draw, render, export */
-    const labelsSvg = placed.map((l) => `<text class="lbl${l.small ? " small" : ""}" transform="translate(${n2(l.x)} ${n2(l.y)}) rotate(${n2(l.angle)})" y="${n2(l.cap / 2)}">${esc(l.text)}</text>`).join("\n");
-    const svg = (extra = "", base = baseSvg) => `<svg id="plate" xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">\n${base}\n${labelsSvg}\n${extra}</svg>`;
-    const shoot = async (markup) => {
-      await page.setContent(pageFor(lang, markup));
-      await fontsReady(page, lang);
-      const png = await page.locator("#plate").screenshot({ type: "png" });
-      const info = await sharp(png).metadata();
-      if (info.width !== W || info.height !== H) throw new Error(`render is ${info.width} x ${info.height}, expected ${W} x ${H}`);
-      return png;
-    };
-
-    const png = await shoot(svg());
-    const names = { webp1600: `map-${lang}-1600.webp`, webp960: `map-${lang}-960.webp`, jpg960: `map-${lang}-960.jpg` };
-    const small = sharp(png).resize(960, 720, { kernel: "lanczos3" });
-    await sharp(png).webp({ quality: 82, effort: 6, smartSubsample: true }).toFile(path.join(OUT_IMG, names.webp1600));
-    await small.clone().webp({ quality: 82, effort: 6, smartSubsample: true }).toFile(path.join(OUT_IMG, names.webp960));
-    await small.clone().jpeg({ quality: 82, mozjpeg: true, chromaSubsampling: "4:4:4" }).toFile(path.join(OUT_IMG, names.jpg960));
-    /* the same drawing at twice the size, and its names alone on a clear background */
-    const shootLarge = async (markup, overlay = false) => {
-      await page2.setContent(pageFor(lang, markup, overlay));
-      await fontsReady(page2, lang);
-      const big = await page2.locator("#plate").screenshot({ type: "png", omitBackground: overlay });
-      const info = await sharp(big).metadata();
-      if (info.width !== W * 2 || info.height !== H * 2) throw new Error(`large render is ${info.width} x ${info.height}, expected ${W * 2} x ${H * 2}`);
-      return big;
-    };
-    names.webp3200 = `map-${lang}-3200.webp`;
-    names.names = `map-${lang}-names.webp`;
-    await sharp(await shootLarge(svg())).webp({ quality: 78, effort: 6, smartSubsample: true }).toFile(path.join(OUT_IMG, names.webp3200));
-    const namesPng = await shootLarge(svg("", ""), true);
-    if ((await sharp(namesPng).stats()).channels[3].min !== 0) throw new Error("the names overlay has no clear background");
-    await sharp(namesPng).webp({ quality: 86, alphaQuality: 92, effort: 6 }).toFile(path.join(OUT_IMG, names.names));
-    files[lang] = { webp: [names.webp960, names.webp1600], jpg: names.jpg960, large: names.webp3200, names: names.names };
-    written.push(...Object.values(names).map((n) => path.join(OUT_IMG, n)));
-
-    /* check image: the same render with the verification points on top, through the same projection */
-    const marks = checks.map((c) => {
-      const [x, y] = c.px, r = 9, left = x > W - 190;
-      return `<path class="chk-x" d="M${n2(x - r)} ${n2(y)}H${n2(x + r)}M${n2(x)} ${n2(y - r)}V${n2(y + r)}"/><text class="chk" x="${n2(x + (left ? -13 : 13))}" y="${n2(y - 9)}" text-anchor="${left ? "end" : "start"}">${esc(c[lang])}</text>`;
-    }).join("\n");
-    const checkFile = path.join(OUT_PRIVATE, `check-${lang}.png`);
-    await writeFile(checkFile, await shoot(svg(marks)));
-    written.push(checkFile);
+    /* from level 1: the small picture of the whole area that sits under the tiles while they load */
+    if (L.k === 1 && ONLY !== "names") {
+      const s = levelSize(1), big = await browser.newContext({ viewport: { width: s.w, height: s.h }, deviceScaleFactor: 1 }), p2 = await big.newPage();
+      await p2.setContent(pageOf(null, drawBase(lv, [0, 0, s.w, s.h]), [0, 0, s.w, s.h], false));
+      await sharp(await p2.screenshot({ type: "png" })).webp({ quality: 72, effort: 6 }).toFile(path.join(OUT_IMG, "map-wide.webp"));
+      await big.close();
+    }
+    /* from level 3: the picture the page shows before its script runs, which is the neighbourhood with its names */
+    if (L.k === 3 && ONLY !== "base") {
+      const a = toFrame(NEAR.west, NEAR.north), b = toFrame(NEAR.east, NEAR.south);
+      const r = [Math.round(a[0] * lv.W), Math.round(a[1] * lv.H), Math.round(b[0] * lv.W), Math.round(b[1] * lv.H)];
+      const ctx = await browser.newContext({ viewport: { width: r[2] - r[0], height: r[3] - r[1] }, deviceScaleFactor: 2 }), p3 = await ctx.newPage();
+      for (const lang of ["en", "th"]) {
+        await p3.setContent(pageOf(lang, drawBase(lv, r) + "\n" + drawNames(labelsAt[lang][3], r), r, false));
+        await fontsReady(p3, lang);
+        const png = await p3.screenshot({ type: "png" });
+        const small = sharp(png).resize(960, 720, { kernel: "lanczos3" });
+        await sharp(png).resize(1600, 1200, { kernel: "lanczos3" }).webp({ quality: 82, effort: 6, smartSubsample: true }).toFile(path.join(OUT_IMG, `map-${lang}-1600.webp`));
+        await small.clone().webp({ quality: 82, effort: 6, smartSubsample: true }).toFile(path.join(OUT_IMG, `map-${lang}-960.webp`));
+        await small.clone().jpeg({ quality: 82, mozjpeg: true, chromaSubsampling: "4:4:4" }).toFile(path.join(OUT_IMG, `map-${lang}-960.jpg`));
+        await writeFile(at("_private/map", `check-${lang}.png`), png);
+      }
+      await ctx.close();
+    }
   }
 } finally {
   await browser.close();
 }
 
-/* === Projection record for the site ======================================= */
-const fetchedDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(meta.fetched));
-const record = { width: W, height: H, bounds: BOUNDS, projection: "web-mercator", source: "OpenStreetMap contributors, ODbL", fetched: fetchedDay, files };
-const recordFile = at("src/data/map.generated.json");
-await writeFile(recordFile, JSON.stringify(record, null, 2) + "\n", "utf8");
-written.push(recordFile);
-
-/* === Report =============================================================== */
-const R = 6378137, E2 = 0.00669437999014, lat0 = rad(CENTRE_LAT);
-const nominal = { width: R * (MX1 - MX0) * Math.cos(lat0), height: R * (MY0 - MY1) * Math.cos(lat0) };       /* the usual Web Mercator ground size */
-const k = 1 - E2 * Math.sin(lat0) ** 2;
-const wgs84 = { width: ((MX1 - MX0) * R * Math.cos(lat0)) / Math.sqrt(k), height: (rad(BOUNDS.north - BOUNDS.south) * R * (1 - E2)) / k ** 1.5 };
-const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
-const sizes = {};
-for (const f of written) sizes[path.relative(ROOT, f).replace(/\\/g, "/")] = (await stat(f)).size;
-
-/* where the hotel point falls against the mapped streets, as plain numbers */
-const centre = (name) => labelSpecs.find((s) => s.osm === name)?.lines || [];
-const hotelPx = checks[0].px;
-const metres = (a, b) => Math.round(Math.hypot(((a[0] - b[0]) * wgs84.width) / W, ((a[1] - b[1]) * wgs84.height) / H));
-const unproject = ([x, y]) => ({ lat: round(invMercY(MY0 - (y / H) * (MY0 - MY1)), 6), lon: round(((MX0 + (x / W) * (MX1 - MX0)) * 180) / Math.PI, 6) });
-const side = (from, to) => (Math.abs(to[1] - from[1]) > Math.abs(to[0] - from[0]) ? (to[1] < from[1] ? "north" : "south") : to[0] > from[0] ? "east" : "west");
-const beside = (name) => { const n = nearestOnLines(hotelPx, centre(name)); return n ? { metres: metres(hotelPx, n.point), lies: `${side(hotelPx, n.point)} of the hotel point` } : null; };
-let crossing = null;       /* Pratunam: where the Ratchaprarop / Ratchadamri centre line meets Phetchaburi Road */
-for (const line of [...centre("Ratchaprarop Road"), ...centre("Ratchadamri Road")]) for (const p of densify(line, 2)) {
-  const n = nearestOnLines(p, centre("Phetchaburi Road"));
-  if (n && (!crossing || n.d < crossing.d)) crossing = n;
+/* === The record the site reads ============================================ */
+if (!ONLY_LEVELS && ONLY !== "base") {
+  const fetchedDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(meta.fetched || Date.now()));
+  const filesFor = (lang) => ({ webp: [`map-${lang}-960.webp`, `map-${lang}-1600.webp`], jpg: `map-${lang}-960.jpg` });
+  const record = {
+    width: 1600, height: 1200, bounds: NEAR, projection: "web-mercator", source: "OpenStreetMap contributors, ODbL", fetched: fetchedDay,
+    files: { en: filesFor("en"), th: filesFor("th") },
+    wide: { bounds: FRAME, open: OPEN, ground: Math.round(GROUND), tile: TILE, under: "map-wide.webp", levels: LEVELS, names: have },
+  };
+  await writeFile(at("src/data/map.generated.json"), JSON.stringify(record, null, 2) + "\n", "utf8");
 }
-
-console.log(JSON.stringify({
-  data: { reused, endpoint: meta.endpoint, fetched: meta.fetched, osmBase: osm.osm3s?.timestamp_osm_base, elements: osm.elements.length, queryBbox: QUERY_BBOX },
-  frame: { width: W, height: H, bounds: BOUNDS, aspect: round((MX1 - MX0) / (MY0 - MY1), 6) },
-  ground: {
-    webMercatorNominal: { widthM: round(nominal.width, 1), heightM: round(nominal.height, 1), metresPerPx: round(nominal.width / W, 4) },
-    wgs84Ellipsoid: { widthM: round(wgs84.width, 1), heightM: round(wgs84.height, 1), metresPerPxX: round(wgs84.width / W, 4), metresPerPxY: round(wgs84.height / H, 4) },
-  },
-  drawn: {
-    roads: Object.fromEntries(roadOrder.map((c) => [c, roadLines[c].length])),
-    rails: Object.fromEntries(Object.entries(rails).map(([name, lines]) => [name, { lines: lines.length, maxPxFromAMappedTrack: round(railDrift[name], 1) }])),
-    buildings: buildings.simple.length + buildings.holed.length, water: water.simple.length + water.holed.length, parks: parks.simple.length + parks.holed.length,
-  },
-  checks: checks.map((c) => ({ key: c.key, lat: c.lat, lon: c.lon, x: round(c.px[0], 1), y: round(c.px[1], 1), osmNode: c.osmNode, pxFromItsRailLine: c.offLine == null ? undefined : round(c.offLine, 1) })),
-  hotel: {
-    phetchaburiRoad: beside("Phetchaburi Road"),
-    saenSaepCanal: beside("Khlong Saen Saep"),
-    pratunamCrossing: crossing && { ...unproject(crossing.point), x: round(crossing.point[0], 1), y: round(crossing.point[1], 1), metres: metres(hotelPx, crossing.point), lies: `${side(hotelPx, crossing.point)} of the hotel point` },
-  },
-  labels: Object.fromEntries(Object.entries(placedByLang).map(([lang, list]) => [lang, list.map((l) => ({ text: l.text, x: Math.round(l.x), y: Math.round(l.y), angle: round(l.angle, 1), shift: round(l.shift, 1), width: Math.round(l.width), sag: round(l.sag, 1) }))])),
-  warnings,
-  files: sizes,
-}, null, 1));
+report.files = files; report.megabytes = Math.round((bytes / 1048576) * 10) / 10;
+report.data = { fetched: meta.fetched, osmBase: meta.osmBase, elements: wide.elements.length, buildings: bld.elements.length, roads: roads.length, rails: rails.length, tracksMapped: railsAll.length, stations: stations.length, places: placeNodes.length };
+await writeFile(at("_private/map/last-run.json"), JSON.stringify(report, null, 1), "utf8");
+console.log(JSON.stringify({ files, megabytes: report.megabytes, data: report.data }));

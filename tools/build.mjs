@@ -17,6 +17,7 @@
    Usage: node tools/build.mjs            preview (default)
           SITE_MODE=production SITE_ORIGIN=https://example.com SITE_BASE=/ node tools/build.mjs */
 import { readFile, writeFile, mkdir, rm, readdir, stat, copyFile } from "node:fs/promises";
+import { Script } from "node:vm";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
@@ -111,6 +112,14 @@ const map = {
     if (x < 0 || x > 100 || y < 0 || y > 100) throw new Error(`Coordinate ${lat}, ${lon} is outside the map plate`);
     return [x, y];
   },
+  /* The map a visitor can move: central Bangkok, with the neighbourhood above in its middle. Its levels, and
+     which squares of names exist, come from the record tools/map.mjs wrote. */
+  wide: mapInfo.wide,
+  /** Position on the wide frame as percentages. */
+  projectWide(lat, lon) {
+    const b = mapInfo.wide.bounds;
+    return [((lon - b.west) / (b.east - b.west)) * 100, ((mercY(b.north) - mercY(lat)) / (mercY(b.north) - mercY(b.south))) * 100];
+  },
 };
 
 async function hashOf(...files) {
@@ -148,7 +157,7 @@ function context(lang, page, { absoluteLinks = false } = {}) {
     href: (p = "") => root + lang + "/" + p,
     altHref: root + other + "/" + page.path,
     rootHref: root,
-    asset: (p) => root + (p.startsWith("media/") ? p : "assets/" + p),
+    asset: (p) => root + (p.startsWith("media/") || p.startsWith("map/") ? p : "assets/" + p),
     absolute: (lg, p) => config.origin + config.basePath + lg + "/" + p,
     media(id) {
       const m = mediaById.get(id), g = generated[id];
@@ -180,14 +189,34 @@ async function copyDir(from, to) {
   }
 }
 
-/* clean everything this build owns; docs/media belongs to tools/images.mjs */
+/* clean everything this build owns; docs/media belongs to tools/images.mjs and docs/map to tools/map.mjs */
 await mkdir(OUT, { recursive: true });
 for (const ent of await readdir(OUT)) {
-  if (ent === "media") continue;
+  if (ent === "media" || ent === "map") continue;
   await rm(path.join(OUT, ent), { recursive: true, force: true });
 }
 await copyDir(SRC_ASSETS, path.join(OUT, "assets"));
 await writeFile(path.join(OUT, ".nojekyll"), "", "utf8");
+
+/* The script is shipped without its comments. They are written for whoever reads the source
+   (src/assets/js/site.js), and they are a fifth of what a visitor would otherwise download. Strings are
+   stepped over, so a comment mark inside one is left alone. Two ways of taking the comments out must agree,
+   and what is left must still compile, or the build stops. */
+{
+  const file = path.join(OUT, "assets/js/site.js"), src = await readFile(file, "utf8");
+  let out = "", i = 0, quote = null;
+  while (i < src.length) {
+    const ch = src[i];
+    if (quote) { out += ch; if (ch === "\\") { out += src[i + 1]; i += 2; continue; } if (ch === quote) quote = null; i++; continue; }
+    if (ch === '"' || ch === "'" || ch === "`") { quote = ch; out += ch; i++; continue; }
+    if (ch === "/" && src[i + 1] === "*") { const end = src.indexOf("*/", i + 2); if (end < 0) throw new Error("site.js: a comment is never closed"); i = end + 2; continue; }
+    out += ch; i++;
+  }
+  const tidy = (t) => t.replace(/[ \t]+$/gm, "").replace(/\n{2,}/g, "\n");
+  if (tidy(out) !== tidy(src.replace(/\/\*[\s\S]*?\*\//g, ""))) throw new Error("site.js: its comments could not be taken out safely (a comment mark inside a string or a pattern?)");
+  new Script(tidy(out), { filename: "site.js" });
+  await writeFile(file, "/* Grand Diamond Suites concept. Source, with its comments: src/assets/js/site.js in the repository. */\n" + tidy(out), "utf8");
+}
 
 const pages = pageList();
 const report = [];
@@ -335,6 +364,17 @@ let mediaCount = 0, mediaBytes = 0, mediaMax = 0;
 if (existsSync(mediaDir)) for (const f of await readdir(mediaDir)) { const s = (await stat(path.join(mediaDir, f))).size; mediaCount++; mediaBytes += s; mediaMax = Math.max(mediaMax, s); }
 if (!mediaCount) errors.push("docs/media is empty: run node tools/images.mjs first");
 if (mediaMax > 200 * 1024) errors.push(`an image in docs/media is over 200 KB (${Math.round(mediaMax / 1024)} KB)`);
+/* the map's squares are made by tools/map.mjs and kept in docs/map: every one the record names must be there */
+{
+  const there = (f) => stat(path.join(OUT, f)).then(() => true, () => false);
+  let missing = 0, first = "";
+  for (const L of mapInfo.wide.levels) for (let r = 0; r < L.rows; r++) for (let c = 0; c < L.cols; c++) {
+    const id = `${L.k}/${L.c0 + c}_${L.r0 + r}.webp`;
+    const wanted = ["map/base/" + id, ...["en", "th"].filter((lang) => mapInfo.wide.names[lang][L.k][r * L.cols + c] === "1").map((lang) => `map/${lang}/${id}`)];
+    for (const f of wanted) if (!(await there(f))) { missing++; first ||= f; }
+  }
+  if (missing) errors.push(`${missing} map squares are missing from docs/map (the first: ${first}). Run node tools/map.mjs`);
+}
 /* budgets from the October 2026 audit: the shared stylesheet and script each under 25 KB compressed */
 if (cssGz > 25 * 1024) errors.push(`CSS is ${(cssGz / 1024).toFixed(1)} KB compressed (budget 25)`);
 if (jsGz > 25 * 1024) errors.push(`JavaScript is ${(jsGz / 1024).toFixed(1)} KB compressed (budget 25)`);

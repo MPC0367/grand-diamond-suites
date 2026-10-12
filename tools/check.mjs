@@ -52,7 +52,8 @@ const VIEWPORTS = quick
   : [[320, 568], [375, 667], [390, 844], [430, 932], [768, 1024], [1024, 768], [1280, 800], [1440, 900], [844, 390], [1920, 1080]];
 
 const fails = [], failed = [], passes = [], notes = [];
-const ok = (name) => passes.push(name);
+const show = !!arg("show", false);   /* --show prints every check as it passes, to see where a block stops */
+const ok = (name) => { passes.push(name); if (show) console.log("  ok " + name); };
 const bad = (name, detail) => { fails.push(`${name}: ${detail}`); failed.push({ name, detail }); console.log("  x " + name + ": " + detail); };
 const expect = (cond, name, detail = "") => (cond ? ok(name) : bad(name, String(detail || "failed").slice(0, 400)));
 const note = (name, text) => { notes.push({ name, text: String(text) }); };
@@ -489,6 +490,22 @@ if (runs("behaviour")) {
     await page.evaluate(() => window.scrollBy(0, -90)); await page.waitForTimeout(700);
     const b2 = await docked(seenPin.id);
     expect(seenPin.cut > 40 && b1.shown && b1.seen && b1.offMarker && b2.shown && b2.seen && b2.offMarker, "phone: with part of the map out of sight (under the booking bar or off the screen) the card opens in the part that can be seen, and is set there again after the page is scrolled", JSON.stringify([seenPin, [b1.shown, b1.seen, b1.offMarker, b1.edge], [b2.shown, b2.seen, b2.offMarker, b2.edge]]));
+    /* The booking bar switched on with no scroll at all (as when a field is left) while a card lies where the bar
+       will rest: the card is set again at once, above where the bar will rest, not where the bar is caught half
+       way in. The map's bottom edge is put behind the bar's place, and a marker high on the map is used, so that
+       the card lies along the bottom (a card along the top would cover a marker that high). */
+    await page.evaluate(() => { document.querySelector("[data-map]").__map.choose(""); const v = document.querySelector("[data-view]").getBoundingClientRect(); window.scrollBy(0, v.bottom - (innerHeight - 30)); });
+    await page.waitForTimeout(900);
+    const topPin = await page.evaluate(() => { const v = document.querySelector("[data-view]").getBoundingClientRect(), head = document.querySelector(".site-header").getBoundingClientRect().bottom; for (const p of document.querySelectorAll("[data-map] .pin[data-pin]")) { const r = p.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2; if (r.top > Math.max(v.top, head) + 2 && y < v.top + 100 && r.left > v.left + 6 && r.right < v.right - 6 && document.elementFromPoint(x, y) === p) return { id: p.getAttribute("data-pin"), at: [x, y] }; } return null; });
+    const cardAndBar = () => page.evaluate((id) => { const c = document.querySelector('.pin[data-pin="' + id + '"] .pin__card').getBoundingClientRect(), bar = document.querySelector(".mcta"); return { cardBottom: Math.round(c.bottom), barRests: innerHeight - bar.offsetHeight, barNow: Math.round(bar.getBoundingClientRect().top) }; }, topPin.id);
+    await page.touchscreen.tap(topPin.at[0], topPin.at[1]); await page.waitForTimeout(450);
+    await page.evaluate((id) => { document.querySelector(".mcta").classList.remove("is-on"); document.querySelector("[data-map]").__map.place(id); }, topPin.id); await page.waitForTimeout(450);
+    const low = await cardAndBar();
+    await page.evaluate(() => document.querySelector(".mcta").classList.add("is-on")); await page.waitForTimeout(60);
+    const early = await cardAndBar();
+    await page.waitForTimeout(500);
+    const b4 = await docked(topPin.id);
+    expect(low.cardBottom > low.barRests && early.cardBottom <= early.barRests && b4.shown && b4.seen && b4.offMarker, "phone: when the booking bar slides in over an open card, the card is set above where the bar will rest, at once and with no scroll", JSON.stringify([low, early, b4.seen]));
 
     /* touch targets: nothing under 24 by 24 anywhere, and the controls a thumb is aimed at reach 44 */
     for (const route of ["en/", "en/suites/compare/", "en/contact/", "th/suites/luxury-suite/", "th/location/"]) {
@@ -587,6 +604,9 @@ if (runs("behaviour")) {
     /* a spot of the map with no marker or control over it, to drag from */
     const blank = () => page.evaluate(() => { const v = document.querySelector("[data-view]"), r = v.getBoundingClientRect(); for (let y = 0.7; y > 0.2; y -= 0.07) for (let x = 0.3; x < 0.8; x += 0.07) { const px = r.left + r.width * x, py = r.top + r.height * y, t = document.elementFromPoint(px, py); if (t && v.contains(t) && !t.closest("button, a, p")) return [px, py]; } return null; });
 
+    /* as it opened, before anything below moves it */
+    const atOpen = { ...(await state()), out: await page.isEnabled('[data-zoom="out"]'), back: await page.isDisabled('[data-zoom="reset"]'), in: await page.isEnabled('[data-zoom="in"]'), aligned: await aligned() };
+
     /* markers */
     const pins = await page.evaluate(() => [...document.querySelectorAll("[data-map] .pin[data-pin]")].map((p) => ({ label: p.getAttribute("aria-label"), text: p.textContent.trim(), svg: !!p.querySelector("svg"), tag: p.tagName, name: p.querySelector(".pin__name").textContent, shown: getComputedStyle(p.querySelector(".pin__card")).visibility })));
     expect(pins.length === 5 && pins.every((p) => p.tag === "BUTTON" && p.svg && !/^\s*\d/.test(p.label) && !/^\s*\d/.test(p.text) && p.label.startsWith(p.name + ", ") && p.shown === "hidden"), "map: every marker is an icon named after its place and its kind, and none carries a number", JSON.stringify(pins.slice(0, 2)));
@@ -634,20 +654,27 @@ if (runs("behaviour")) {
     expect(escaped === "" && (await shownCards()) === "centralworld", "map card: Escape puts a card away without the mouse having to move, and pointing at the marker again brings it back", escaped);
     await away();
 
-    /* a card must not shut off the markers it lies over */
-    const under = cards.flatMap((a) => cards.filter((b) => b.id !== a.id && b.at[0] > a.rect[0] + 4 && b.at[0] < a.rect[2] - 4 && b.at[1] > a.rect[1] + 4 && b.at[1] < a.rect[3] - 4).map((b) => [a, b]))[0];
+    /* A card must not shut off the markers it lies over. The pair is looked for afresh, with the card open:
+       which side a card takes depends on where the map is at that moment. */
+    const UNDER = "map card: a marker lying under another marker's card can still be pointed at and chosen (the marker takes over from the card)";
     let took = "no marker lies under another marker's card on this map";
-    if (under) {
-      const [a, b] = under;
-      await page.hover(`.pin[data-pin="${a.id}"]`); await page.waitForTimeout(280);
-      await page.mouse.move(b.at[0], b.at[1], { steps: 14 }); await page.waitForTimeout(320);
+    for (const [aId] of homePins) {
+      await away();
+      await page.hover(`.pin[data-pin="${aId}"]`); await page.waitForTimeout(300);
+      const pair = await page.evaluate((aId) => { const A = document.querySelector('.pin[data-pin="' + aId + '"]'), r = A.querySelector(".pin__card").getBoundingClientRect(); for (const B of document.querySelectorAll("[data-map] .pin[data-pin]")) { if (B === A) continue; const m = B.getBoundingClientRect(), x = m.left + m.width / 2, y = m.top + m.height / 2; if (x > r.left + 4 && x < r.right - 4 && y > r.top + 4 && y < r.bottom - 4) return { b: B.getAttribute("data-pin"), at: [x, y] }; } return null; }, aId);
+      if (!pair) continue;
+      await page.mouse.move(pair.at[0], pair.at[1], { steps: 14 }); await page.waitForTimeout(340);
       const now = await shownCards();
-      await page.mouse.click(b.at[0], b.at[1]); await page.waitForTimeout(280);
-      const chose = [(await cardOf(a.id)).pressed, (await cardOf(b.id)).pressed].join();
-      took = a.id + " over " + b.id + ": showing " + now + ", chosen " + chose;
-      expect(now === b.id && chose === "false,true", "map card: a marker lying under another marker's card can still be pointed at and chosen (the marker takes over from the card)", took);
-      await page.mouse.click(b.at[0], b.at[1]); await away();
-    } else expect(false, "map card: a marker lying under another marker's card can still be pointed at and chosen (the marker takes over from the card)", took);
+      await page.mouse.click(pair.at[0], pair.at[1]); await page.waitForTimeout(300);
+      const chose = [(await cardOf(aId)).pressed, (await cardOf(pair.b)).pressed].join();
+      took = aId + " over " + pair.b + ": showing " + now + ", chosen " + chose;
+      expect(now === pair.b && chose === "false,true", UNDER, took);
+      await page.mouse.click(pair.at[0], pair.at[1]);
+      took = "";
+      break;
+    }
+    if (took) expect(false, UNDER, took);
+    await away();
 
     /* choosing keeps the card; one card at a time; a drag leaves it, a plain click on the map puts it away */
     await page.click('.pin[data-pin="centralworld"]'); await away();
@@ -681,67 +708,127 @@ if (runs("behaviour")) {
     /* the list beside the map */
     await page.click('[data-near="platinum"]'); await away();
     expect(await page.evaluate(() => document.querySelector('.pin[data-pin="platinum"]').getAttribute("aria-pressed") === "true" && document.querySelector('.pin[data-pin="centralworld"]').getAttribute("aria-pressed") === "false") && (await shownCards()) === "platinum", "map: choosing a row in the list chooses its marker and opens its card", await shownCards());
-    expect(await page.evaluate(() => { const n = document.querySelector('.pin[data-pin="platinum"] .pin__card'), a = n.getBoundingClientRect(), b = document.querySelector("[data-map] .pin-label").getBoundingClientRect(); return !(a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top); }), "map: the card of the place right beside the hotel is set where it does not cover the hotel's own label");
+    expect(await page.evaluate(() => { const n = document.querySelector('.pin[data-pin="platinum"] .pin__card'), a = n.getBoundingClientRect(), b = document.querySelector("[data-map] .pin--hotel").getBoundingClientRect(); return !document.querySelector("[data-map] .pin-label") && !/Grand Diamond Suites/.test(document.querySelector("[data-pins]").textContent) && !(a.left < b.right - 4 && a.right > b.left + 4 && a.top < b.bottom - 4 && a.bottom > b.top + 4); }), "map: the hotel is marked by its diamond alone, with no name written on the map, and the card of the place right beside it does not cover the diamond");
     await page.click('[data-near="platinum"]'); await away();
 
-    /* zoom and movement */
+    /* Zoom and movement. The map is a drawing of central Bangkok that opens with the hotel's neighbourhood
+       filling its window: OPEN is how many times the whole drawing is enlarged at that moment. */
+    const OPEN = await page.evaluate(() => +document.querySelector("[data-map]").getAttribute("data-open"));
+    const tilesNow = () => page.evaluate(() => { const got = (sel) => [...document.querySelectorAll(sel + " img.is-in")].map((i) => new URL(i.src)); const b = got(".mapplate__grid--base"), n = got(".mapplate__grid--names"); const lv = (list) => [...new Set(list.map((u) => u.pathname.split("/").slice(-2)[0]))].sort().join(); return { base: b.length, names: n.length, baseLevels: lv(b), nameLevels: lv(n.filter((u) => u.pathname.includes("/map/en/"))), own: [...b, ...n].every((u) => u.origin === location.origin), under: !!document.querySelector(".mapplate__under") }; });
+    expect(OPEN >= 3 && Math.abs(atOpen.scale - OPEN) < 0.02 && !atOpen.zoomed && atOpen.hx > 60 && atOpen.hx < atOpen.vw - 60 && atOpen.left < -200 && atOpen.top < -200 && atOpen.right > 200 && atOpen.bottom > 200 && atOpen.out && atOpen.back && atOpen.in && atOpen.aligned, "map: it opens on the hotel's neighbourhood with the markers in place, and with map to spare on every side and room to zoom out and in", JSON.stringify(atOpen));
+    /* the card checks above may have moved the map to bring a marker into the window: back to where it opened */
+    if (await page.isEnabled('[data-zoom="reset"]')) { await page.click('[data-zoom="reset"]'); await page.waitForTimeout(500); }
     const s0 = await state();
-    expect(Math.abs(s0.scale - 1) < 0.01 && !s0.zoomed && s0.left === 0 && s0.top === 0 && await page.isDisabled('[data-zoom="out"]') && await page.isDisabled('[data-zoom="reset"]') && await page.isEnabled('[data-zoom="in"]') && await aligned(), "map: it opens on the whole area, markers in place, with zoom out and reset switched off", JSON.stringify(s0));
+    expect(Math.abs(s0.hx - atOpen.hx) < 2 && Math.abs(s0.hy - atOpen.hy) < 2 && Math.abs(s0.scale - OPEN) < 0.02, "map: Back to the hotel returns to exactly where it opened", JSON.stringify([atOpen.hx, atOpen.hy, s0.hx, s0.hy]));
+    await page.waitForTimeout(700);
+    const t0 = await tilesNow();
+    expect(t0.base >= 4 && t0.names >= 1 && t0.baseLevels === "3" && t0.nameLevels === "3" && t0.own && t0.under, "map: the drawing and its names arrive as squares from this site, at the level that suits the zoom, over a small picture of the whole area", JSON.stringify(t0));
+    /* it can be moved at once, in any direction, without zooming first */
+    const first = await blank();
+    await page.mouse.move(first[0], first[1]); await page.mouse.down(); await page.mouse.move(first[0] - 150, first[1] + 90, { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(250);
+    const sA = await state();
+    expect(Math.abs(sA.left - s0.left + 150) < 3 && Math.abs(sA.top - s0.top - 90) < 3 && Math.abs(sA.scale - OPEN) < 0.02 && await aligned() && await page.isEnabled('[data-zoom="reset"]'), "map: as it opens it can be dragged at once, in any direction, by as much as the pointer moves", JSON.stringify([s0.left, s0.top, sA.left, sA.top]));
+    await page.click('[data-zoom="reset"]'); await page.waitForTimeout(450);
     await page.click('[data-zoom="in"]'); await page.waitForTimeout(450);
     const s1 = await state();
-    expect(Math.abs(s1.scale - 1.8) < 0.05 && s1.zoomed && Math.abs((s1.hx - s1.vw / 2) - 1.8 * (s0.hx - s0.vw / 2)) < 4 && await aligned() && await page.isEnabled('[data-zoom="out"]'), "map: the zoom button enlarges the map about its centre, and the markers follow at their own size", JSON.stringify(s1));
+    expect(Math.abs(s1.scale - 1.8 * OPEN) < 0.1 && s1.zoomed && Math.abs((s1.hx - s1.vw / 2) - 1.8 * (s0.hx - s0.vw / 2)) < 4 && await aligned() && await page.isEnabled('[data-zoom="out"]'), "map: the zoom button enlarges the map about its centre, and the markers follow at their own size", JSON.stringify(s1));
     const from = await blank();
     await page.mouse.move(from[0], from[1]); await page.mouse.down(); await page.mouse.move(from[0] + 120, from[1] + 50, { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(250);
     const s2 = await state();
     expect(Math.abs(s2.left - s1.left - 120) < 3 && Math.abs(s2.top - s1.top - 50) < 3 && Math.abs(s2.scale - s1.scale) < 0.01 && await aligned(), "map: dragging moves the map by as much as the pointer moved", JSON.stringify([s1.left, s1.top, s2.left, s2.top]));
-    await page.mouse.move(from[0], from[1]); await page.mouse.down(); await page.mouse.move(from[0] + 3000, from[1] + 3000, { steps: 6 }); await page.mouse.up(); await page.waitForTimeout(250);
+    /* many short drags inside the window, down and to the right: a drag that leaves the window makes some browsers scroll the page */
+    const haul = async (n) => { for (let i = 0; i < n; i++) { const g = await blank(), v = await page.locator("[data-view]").boundingBox(); await page.mouse.move(g[0], g[1]); await page.mouse.down(); await page.mouse.move(v.x + v.width - 8, v.y + v.height - 8, { steps: 5 }); await page.mouse.up(); await page.waitForTimeout(110); } };
+    await haul(18);
     const s3 = await state();
-    expect(s3.left === 0 && s3.top === 0 && s3.right >= 0 && s3.bottom >= 0, "map: it stops at its own edge, so the window never shows an empty strip", JSON.stringify(s3));
+    expect(Math.abs(s3.left) < 0.5 && Math.abs(s3.top) < 0.5 && s3.right >= 0 && s3.bottom >= 0, "map: it stops at its own edge, so the window never shows an empty strip", JSON.stringify(s3));
     await page.click('[data-zoom="reset"]'); await page.waitForTimeout(450);
     const s4 = await state();
-    expect(Math.abs(s4.scale - 1) < 0.01 && Math.abs(s4.hx - s0.hx) < 2 && await page.isDisabled('[data-zoom="reset"]'), "map: Show the whole area puts it back as it opened", JSON.stringify(s4));
+    expect(Math.abs(s4.scale - OPEN) < 0.02 && Math.abs(s4.hx - s0.hx) < 2 && Math.abs(s4.hy - s0.hy) < 2 && await page.isDisabled('[data-zoom="reset"]') && (await page.getAttribute('[data-zoom="reset"]', "aria-label")) === "Back to the hotel", "map: Back to the hotel puts it back as it opened", JSON.stringify(s4));
+    /* zooming out: the whole of central Bangkok, every marker in the window */
+    for (let i = 0; i < 6; i++) { if (await page.isDisabled('[data-zoom="out"]')) break; await page.click('[data-zoom="out"]'); await page.waitForTimeout(380); }
+    await page.waitForTimeout(800);
+    const out = { ...(await state()), pins: await page.evaluate(() => { const v = document.querySelector("[data-view]").getBoundingClientRect(); return [...document.querySelectorAll("[data-map] .pin[data-pin], [data-map] .pin--hotel")].every((p) => { const r = p.getBoundingClientRect(); return r.left >= v.left && r.right <= v.right && r.top >= v.top && r.bottom <= v.bottom; }); }), km: await page.evaluate(() => +document.querySelector("[data-map]").getAttribute("data-ground") / 1000), tiles: await tilesNow() };
+    expect(Math.abs(out.scale - 1) < 0.01 && !out.zoomed && Math.abs(out.left) < 1 && Math.abs(out.top) < 1 && Math.abs(out.right) < 1 && Math.abs(out.bottom) < 1 && out.pins && out.km > 8 && await page.isDisabled('[data-zoom="out"]') && await aligned(), "map: it zooms out to the whole of central Bangkok, about ten kilometres across, with every marker in the window", JSON.stringify(out));
+    expect(/^[01](,[01])?$/.test(out.tiles.baseLevels.replace(/,3$/, "")) && /^[01]$/.test(out.tiles.nameLevels) && out.tiles.own, "map: zoomed out, it is drawn from the coarser levels made for that scale, with their own names", JSON.stringify(out.tiles));
+    const seenPlaces = () => page.evaluate(() => [...document.querySelectorAll("[data-map] .pin[data-pin]")].filter((p) => getComputedStyle(p).visibility !== "hidden").length);
+    const farOut = { places: await seenPlaces(), ...(await page.evaluate(() => ({ hotel: getComputedStyle(document.querySelector("[data-map] .pin--hotel")).visibility }))) };
+    await page.click('[data-near="centralworld"]'); await page.waitForTimeout(800);
+    const backIn = { scale: (await state()).scale, places: await seenPlaces(), shown: await shownCards() };
+    expect(farOut.places === 0 && farOut.hotel === "visible" && Math.abs(backIn.scale - OPEN) < 0.05 && backIn.places === 5 && backIn.shown === "centralworld", "map: zoomed out, where the places would lie on top of one another, only the hotel is marked; choosing a place in the list brings the map back in on it", JSON.stringify([farOut, backIn]));
+    await page.click('[data-near="centralworld"]'); await away();
+    await page.click('[data-zoom="reset"]'); await page.waitForTimeout(500);
 
-    /* the wheel belongs to the page unless Ctrl is held */
+    /* the wheel belongs to the page until the map has been clicked, or Ctrl is held */
+    await page.mouse.move(8, 300); await page.waitForTimeout(150);
     const spot = await blank();
     await page.mouse.move(spot[0], spot[1]);
     const y0 = await page.evaluate(() => scrollY);
     await page.mouse.wheel(0, 120); await page.waitForTimeout(300);
     const plain = { ...(await state()), y: await page.evaluate(() => scrollY), hint: await page.isVisible("[data-map-hint]"), text: (await page.textContent("[data-map-hint]")).trim() };
-    expect(Math.abs(plain.scale - 1) < 0.01 && plain.y > y0 && plain.hint && /Ctrl/.test(plain.text), "map: the wheel alone scrolls the page, and the map says how to zoom", JSON.stringify(plain));
+    expect(Math.abs(plain.scale - OPEN) < 0.02 && plain.y > y0 && plain.hint && /Click the map/.test(plain.text) && /Ctrl/.test(plain.text), "map: before it has been clicked, the wheel scrolls the page and the map says how to zoom", JSON.stringify(plain));
     await page.evaluate((y) => window.scrollTo(0, y), y0); await page.waitForTimeout(200);
     await page.mouse.move(spot[0], spot[1]);
     await page.keyboard.down("Control"); await page.mouse.wheel(0, -240); await page.keyboard.up("Control"); await page.waitForTimeout(300);
     const wheeled = { ...(await state()), y: await page.evaluate(() => scrollY) };
-    expect(wheeled.scale > 1.4 && wheeled.y === y0 && await aligned(), "map: Ctrl and the wheel zoom the map and leave the page where it is", JSON.stringify(wheeled));
+    expect(wheeled.scale > OPEN * 1.4 && wheeled.y === y0 && await aligned(), "map: Ctrl and the wheel zoom the map and leave the page where it is", JSON.stringify(wheeled));
+    await page.click('[data-zoom="reset"]'); await page.waitForTimeout(450);
+    const spotB = await blank();
+    await page.mouse.click(spotB[0], spotB[1]); await page.waitForTimeout(150);
+    await page.mouse.wheel(0, -240); await page.waitForTimeout(300);
+    const engaged = { ...(await state()), y: await page.evaluate(() => scrollY) };
+    await page.mouse.move(8, 300); await page.waitForTimeout(150);
+    await page.mouse.move(spotB[0], spotB[1]);
+    await page.mouse.wheel(0, 120); await page.waitForTimeout(300);
+    const released = { ...(await state()), y: await page.evaluate(() => scrollY) };
+    expect(engaged.scale > OPEN * 1.4 && engaged.y === y0 && Math.abs(released.scale - engaged.scale) < 0.01 && released.y > y0, "map: once the map has been clicked the wheel zooms it, until the mouse leaves it, when the wheel is the page's again", JSON.stringify([engaged.scale, engaged.y, released.scale, released.y, y0]));
+    await page.evaluate((y) => window.scrollTo(0, y), y0); await page.waitForTimeout(200);
 
     /* keyboard */
     await page.focus("[data-view]");
-    await page.keyboard.press("0"); await page.waitForTimeout(450);
+    await page.keyboard.press("0"); await page.waitForTimeout(800);
     const yk = await page.evaluate(() => scrollY);
+    const home = await state();
+    for (let i = 0; i < 6; i++) { await page.keyboard.press("-"); await page.waitForTimeout(480); }
     await page.keyboard.press("ArrowDown"); await page.waitForTimeout(350);
     const atRest = { ...(await state()), y: await page.evaluate(() => scrollY) };
-    expect(Math.abs(atRest.scale - 1) < 0.01 && atRest.y > yk, "map: with nothing more to show in that direction, an arrow key scrolls the page as usual", JSON.stringify(atRest));
+    expect(Math.abs(home.scale - OPEN) < 0.02 && Math.abs(atRest.scale - 1) < 0.01 && atRest.y > yk, "map: 0 goes back to the hotel; and with nothing more to show in that direction, an arrow key scrolls the page as usual", JSON.stringify([home.scale, atRest]));
     await page.evaluate((y) => window.scrollTo(0, y), yk);
     await page.focus("[data-view]");
-    await page.keyboard.press("+"); await page.waitForTimeout(450);
+    await page.keyboard.press("0"); await page.waitForTimeout(800);
+    await page.keyboard.press("+"); await page.waitForTimeout(700);
     const k1 = await state();
-    await page.keyboard.press("ArrowRight"); await page.waitForTimeout(450);
+    await page.keyboard.press("ArrowRight"); await page.waitForTimeout(700);
     const k2 = { ...(await state()), y: await page.evaluate(() => scrollY) };
-    await page.keyboard.press("-"); await page.waitForTimeout(450);
+    await page.keyboard.press("ArrowDown"); await page.waitForTimeout(700);
+    const k2b = { ...(await state()), y: await page.evaluate(() => scrollY) };
+    await page.keyboard.press("-"); await page.waitForTimeout(700);
     const k3 = await state();
-    expect(Math.abs(k1.scale - 1.6) < 0.05 && k2.left < k1.left - 40 && Math.abs(k2.y - yk) < 2 && Math.abs(k3.scale - 1) < 0.01, "map: plus and minus zoom it and the arrow keys move it, from the keyboard", JSON.stringify([k1.scale, k1.left, k2.left, k3.scale]));
+    expect(Math.abs(k1.scale - 1.6 * OPEN) < 0.1 && k2.left < k1.left - 40 && k2b.top < k2.top - 40 && Math.abs(k2b.y - yk) < 2 && Math.abs(k3.scale - OPEN) < 0.05, "map: plus and minus zoom it and the arrow keys move it, from the keyboard", JSON.stringify([k1.scale, k1.left, k2.left, k2b.top, k3.scale]));
     const role = await page.evaluate(() => { const v = document.querySelector("[data-view]"); return [v.tabIndex, v.getAttribute("role"), v.getAttribute("aria-label")]; });
-    expect(role[0] === 0 && role[1] === "group" && /arrow keys/.test(role[2]) && /plus and minus/.test(role[2]), "map: its window is a named stop for the keyboard that says which keys work", role.join(" | "));
+    expect(role[0] === 0 && role[1] === "group" && /arrow keys/.test(role[2]) && /plus and minus/.test(role[2]) && /0 goes back to the hotel/.test(role[2]), "map: its window is a named stop for the keyboard that says which keys work", role.join(" | "));
+    await page.keyboard.press("0"); await page.waitForTimeout(450);
 
     /* double click, and the closest zoom */
     const dc = await blank();
     await page.mouse.dblclick(dc[0], dc[1]); await page.waitForTimeout(500);
-    expect(Math.abs((await state()).scale - 2) < 0.05, "map: a double click zooms in on that spot");
-    for (let i = 0; i < 6; i++) { if (await page.isDisabled('[data-zoom="in"]')) break; await page.click('[data-zoom="in"]'); await page.waitForTimeout(380); }
-    await page.waitForTimeout(900);
-    const far = await page.evaluate(() => { const el = document.querySelector("[data-map]"), v = el.querySelector("[data-view]").getBoundingClientRect(), all = el.querySelector("[data-pins]").getBoundingClientRect(); return { metres: +el.getAttribute("data-ground") / all.width, inOff: el.querySelector('[data-zoom="in"]').disabled, src: el.querySelector(".mapplate__img").currentSrc.split("/").pop() }; });
-    expect(far.inOff && far.metres > 0.5 && far.metres < 0.6 && await aligned(), "map: zooming in stops at about half a metre of ground to a pixel", JSON.stringify(far));
-    expect(far.src === "map-en-3200.webp", "map: once enlarged, the drawing is swapped for its sharper copy", far.src);
+    expect(Math.abs((await state()).scale - 2 * OPEN) < 0.1, "map: a double click zooms in on that spot");
+    await page.click('[data-zoom="reset"]'); await page.waitForTimeout(450);
+    for (let i = 0; i < 8; i++) { if (await page.isDisabled('[data-zoom="in"]')) break; await page.click('[data-zoom="in"]'); await page.waitForTimeout(380); }
+    await page.waitForTimeout(1100);
+    const far = await page.evaluate(() => { const el = document.querySelector("[data-map]"), all = el.querySelector("[data-pins]").getBoundingClientRect(); return { metres: +el.getAttribute("data-ground") / all.width, inOff: el.querySelector('[data-zoom="in"]').disabled }; });
+    const tFar = await tilesNow();
+    expect(far.inOff && far.metres > 0.5 && far.metres < 0.6 && await aligned(), "map: around the hotel, zooming in stops at about half a metre of ground to a pixel", JSON.stringify(far));
+    expect(/5$/.test(tFar.baseLevels) && tFar.nameLevels === "5" && tFar.own, "map: zoomed right in, it is drawn from the finest level, with that level's names", JSON.stringify(tFar));
+    /* at that depth it can be moved only as far as the finely drawn middle goes */
+    await haul(18);
+    const wall = await page.evaluate(() => { const el = document.querySelector("[data-map]"), v = el.querySelector("[data-view]").getBoundingClientRect(), all = el.querySelector("[data-pins]").getBoundingClientRect(); const L = el.getAttribute("data-levels").split(";").map((t) => t.split(/[:,]/).map(Number)).pop(); return { x: (v.left - all.left) / all.width, y: (v.top - all.top) / all.height, zx: L[1] * 0.4 / 2 ** L[0], zy: L[2] * (8 / 15) / 2 ** L[0] }; });
+    expect(Math.abs(wall.x - wall.zx) < 0.0005 && Math.abs(wall.y - wall.zy) < 0.0005 && wall.zx > 0.2, "map: zoomed right in, it can be moved as far as the finely drawn middle goes and no further, so it is never shown blurred", JSON.stringify(wall));
+    /* and far from the hotel, zooming in stops sooner */
+    for (let i = 0; i < 8; i++) { if (await page.isDisabled('[data-zoom="out"]')) break; await page.click('[data-zoom="out"]'); await page.waitForTimeout(330); }
+    const corner = await page.evaluate(() => { const r = document.querySelector("[data-view]").getBoundingClientRect(); return [r.left + r.width * 0.9, r.top + r.height * 0.88]; });
+    for (let i = 0; i < 6; i++) { await page.mouse.dblclick(corner[0], corner[1]); await page.waitForTimeout(520); }
+    const farAway = await page.evaluate(() => { const el = document.querySelector("[data-map]"), all = el.querySelector("[data-pins]").getBoundingClientRect(); return { metres: +el.getAttribute("data-ground") / all.width, inOff: el.querySelector('[data-zoom="in"]').disabled }; });
+    expect(farAway.inOff && farAway.metres > 1.1 && farAway.metres < 1.6, "map: far from the hotel, where only the coarser levels are drawn, zooming in stops at about a metre and a third to a pixel", JSON.stringify(farAway));
 
     /* satellite: nothing is asked of anyone until it is chosen */
     await page.click('[data-zoom="reset"]'); await page.waitForTimeout(500);
@@ -759,14 +846,14 @@ if (runs("behaviour")) {
       const inFrame = asked.every((o) => { const m = pattern.exec(o.url); if (!m) return false; const z = +m.groups.z, t = frame.tiles[z]; return z >= frame.min && z <= frame.max && t && +m.groups.x >= t[0] && +m.groups.x <= t[1] && +m.groups.y >= t[2] && +m.groups.y <= t[3]; });
       expect(asked.length >= 4 && asked.length <= 40 && inFrame && asked.every((o) => !o.nav && o.method === "GET"), "map: choosing Satellite asks the one imagery service for the squares in view, at a sensible zoom, and for nothing else", asked.length + " requests, e.g. " + (asked[0] || {}).url);
       expect(asked.every((o) => o.referer === ""), "map: those requests do not say which page they came from", [...new Set(asked.map((o) => o.referer))].join(" "));
-      const sat = await page.evaluate(() => { const el = document.querySelector("[data-map]"); return { cls: el.classList.contains("is-sat"), seg: [...el.querySelectorAll(".mapseg button")].map((b) => b.getAttribute("aria-pressed")).join(), credit: el.querySelector("[data-credit-sat]").hidden ? "" : el.querySelector("[data-credit-sat]").textContent, osm: el.querySelector("[data-credit-map]").getClientRects().length > 0, names: el.querySelector("[data-names-img]").currentSrc.split("/").pop(), namesOk: el.querySelector("[data-names-img]").naturalWidth, tiles: !el.querySelector("[data-tiles]").hidden }; });
+      const sat = await page.evaluate(() => { const el = document.querySelector("[data-map]"); return { cls: el.classList.contains("is-sat"), seg: [...el.querySelectorAll(".mapseg button")].map((b) => b.getAttribute("aria-pressed")).join(), credit: el.querySelector("[data-credit-sat]").hidden ? "" : el.querySelector("[data-credit-sat]").textContent, osm: el.querySelector("[data-credit-map]").getClientRects().length > 0, names: [...el.querySelectorAll(".mapplate__grid--names img")].filter((i) => new URL(i.src).origin === location.origin && /\/map\/en\/\d\/\d+_\d+\.webp$/.test(i.src)).length, namesLight: /invert/.test(getComputedStyle(el.querySelector(".mapplate__grid--names")).filter), drawn: el.querySelector(".mapplate__grid--base").hidden, tiles: !el.querySelector("[data-tiles]").hidden }; });
       expect(sat.cls && sat.seg === "false,true" && /^Imagery: Esri/.test(sat.credit) && sat.osm && sat.tiles, "map: the switch shows which view is on, and the imagery's own credit appears beside the map data credit", JSON.stringify(sat));
-      expect(sat.names === "map-en-names.webp" && sat.namesOk === 3200 && await aligned(), "map: the street names are laid over the satellite images from this site's own file, and the markers stay in place", JSON.stringify(sat));
+      expect(sat.names >= 1 && sat.namesLight && sat.drawn && await aligned(), "map: the street names are laid over the satellite images from this site's own squares, turned light, and the markers stay in place", JSON.stringify(sat));
       /* in this test every request to another site is stopped, which is also what a visitor offline would meet */
       const failed = await page.evaluate(() => { const f = document.querySelector("[data-sat-fail]"); return { shown: !f.hidden && f.getClientRects().length > 0, text: f.textContent.replace(/\s+/g, " ").trim(), role: f.getAttribute("role") }; });
       expect(failed.shown && /^The satellite images could not be loaded\.\s*Back to the map$/.test(failed.text) && failed.role === "alert", "map: if the images cannot be loaded the map says so and offers the way back", JSON.stringify(failed));
       await page.click("[data-sat-fail] [data-layer]"); await page.waitForTimeout(300);
-      const backTo = await page.evaluate(() => { const el = document.querySelector("[data-map]"); return { cls: el.classList.contains("is-sat"), fail: el.querySelector("[data-sat-fail]").hidden, tiles: el.querySelector("[data-tiles]").hidden, credit: el.querySelector("[data-credit-sat]").hidden, focus: document.activeElement.getAttribute("data-layer") + "/" + document.activeElement.getAttribute("aria-pressed"), plate: el.querySelector(".mapplate__img").getClientRects().length > 0 }; });
+      const backTo = await page.evaluate(() => { const el = document.querySelector("[data-map]"); return { cls: el.classList.contains("is-sat"), fail: el.querySelector("[data-sat-fail]").hidden, tiles: el.querySelector("[data-tiles]").hidden, credit: el.querySelector("[data-credit-sat]").hidden, focus: document.activeElement.getAttribute("data-layer") + "/" + document.activeElement.getAttribute("aria-pressed"), plate: !el.querySelector(".mapplate__grid--base").hidden && getComputedStyle(el.querySelector(".mapplate__under")).visibility === "visible" }; });
       expect(!backTo.cls && backTo.fail && backTo.tiles && backTo.credit && backTo.focus === "map/true" && backTo.plate, "map: Back to the map restores the drawn map and hands the keyboard to the view switch", JSON.stringify(backTo));
       await page.click('[data-layer="sat"]'); await page.waitForTimeout(400);
       const n1 = ctx.outside.length;
@@ -791,9 +878,9 @@ if (runs("behaviour")) {
     await page.mouse.move(8, 300); await page.waitForTimeout(200);
     const rowAndPin = () => page.evaluate(() => document.querySelector('.place[data-place="bacc"] .place__btn').getAttribute("aria-expanded") + "," + document.querySelector('.pin[data-pin="bacc"]').getAttribute("aria-pressed"));
     await page.click('.pin[data-pin="bacc"]'); await page.waitForTimeout(700);
-    const opened = await rowAndPin();
+    const rowOpened = await rowAndPin();
     await page.click('.pin[data-pin="bacc"]'); await page.waitForTimeout(400);
-    expect(opened === "true,true" && (await rowAndPin()) === "false,false", "map card: on the location page a marker opens its row in the list along with its card, and choosing it again closes both", opened + " then " + await rowAndPin());
+    expect(rowOpened === "true,true" && (await rowAndPin()) === "false,false", "map card: on the location page a marker opens its row in the list along with its card, and choosing it again closes both", rowOpened + " then " + await rowAndPin());
     await page.mouse.move(8, 300);
 
     /* what a page may load: the imagery service is allowed on the two pages that have the map, and nowhere else */
@@ -838,21 +925,32 @@ if (runs("behaviour")) {
       await tp.goto(BASE + "en/location/", { waitUntil: "load" });
       await tp.evaluate(() => { const r = document.querySelector("[data-view]").getBoundingClientRect(); window.scrollBy(0, r.top - 140); });
       await tp.waitForTimeout(500);
+      const OPEN = await tp.evaluate(() => +document.querySelector("[data-map]").getAttribute("data-open"));
       const a0 = await st();
       await drag(free, 110, 0);
       const a1 = await st();
-      expect(a0.scale === 1 && a1.left - a0.left > 70 && a1.left - a0.left < 125 && a1.top === a0.top && Math.abs(a1.y - a0.y) < 3, "map, touch: one finger dragged sideways moves the map with it and leaves the page still", JSON.stringify([a0, a1]));
+      expect(Math.abs(a0.scale - OPEN) < 0.02 && a1.left - a0.left > 70 && a1.left - a0.left < 125 && Math.abs(a1.top - a0.top) < 2 && Math.abs(a1.y - a0.y) < 3, "map, touch: one finger dragged sideways moves the map with it and leaves the page still", JSON.stringify([a0, a1]));
       await drag(free, 0, -170);
-      const a2 = await st();
-      expect(a2.y - a1.y > 90 && a2.left === a1.left && a2.top === a1.top && a2.scale === 1, "map, touch: before it is zoomed, a swipe up over the map scrolls the page and leaves the map alone", JSON.stringify([a1, a2]));
+      const a2 = { ...(await st()), hint: await tp.evaluate(() => { const h = document.querySelector("[data-map-hint]"); return h.hidden ? "" : h.textContent.trim(); }) };
+      expect(a2.y - a1.y > 90 && a2.left === a1.left && a2.top === a1.top && Math.abs(a2.scale - OPEN) < 0.02, "map, touch: as it opens, one finger swiped up over the map scrolls the page and leaves the map alone", JSON.stringify([a1, a2]));
+      expect(a2.hint === "Use two fingers to move the map", "map, touch: and the map then says that two fingers move it", a2.hint);
+      /* two fingers moved together move the map, in any direction, and the page stays where it is */
+      await tp.evaluate(() => { const r = document.querySelector("[data-view]").getBoundingClientRect(); window.scrollBy(0, r.top - 140); });
+      await tp.waitForTimeout(500);
+      const two = await findFree(), b0 = await st();
+      await touch("touchStart", [[two[0] - 35, two[1]], [two[0] + 35, two[1]]]);
+      for (let i = 1; i <= 10; i++) { await touch("touchMove", [[two[0] - 35, two[1] - i * 9], [two[0] + 35, two[1] - i * 9]]); await tp.waitForTimeout(16); }
+      await touch("touchEnd", []); await tp.waitForTimeout(400);
+      const b1 = await st();
+      expect(b1.top - b0.top < -60 && b1.top - b0.top > -100 && Math.abs(b1.y - b0.y) < 3 && Math.abs(b1.scale / b0.scale - 1) < 0.06, "map, touch: two fingers moved up together move the map up with them, and the page stays put", JSON.stringify([b0, b1]));
       await tp.evaluate(() => { const r = document.querySelector("[data-view]").getBoundingClientRect(); window.scrollBy(0, r.top - 140); });
       await tp.waitForTimeout(400);
-      const mid = await tp.evaluate(() => { const r = document.querySelector("[data-view]").getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height * 0.6]; });
+      const mid = await findFree(), before3 = await st();
       await touch("touchStart", [[mid[0] - 30, mid[1]], [mid[0] + 30, mid[1]]]);
       for (let i = 1; i <= 10; i++) { await touch("touchMove", [[mid[0] - 30 - i * 6, mid[1]], [mid[0] + 30 + i * 6, mid[1]]]); await tp.waitForTimeout(16); }
       await touch("touchEnd", []); await tp.waitForTimeout(400);
       const a3 = await st();
-      expect(a3.scale > 2.4 && a3.scale < 3.4 && a3.touch === "none", "map, touch: two fingers moved apart zoom the map by as much as they moved (three times, here)", JSON.stringify(a3));
+      expect(a3.scale / before3.scale > 2.4 && a3.scale / before3.scale < 3.4 && a3.touch === "none", "map, touch: two fingers moved apart zoom the map by as much as they moved (three times, here)", JSON.stringify([before3.scale, a3]));
       const y3 = a3.y;
       await drag(mid, 0, -80);
       const a4 = await st();
@@ -1352,6 +1450,8 @@ if (runs("acceptance")) {
     await p2.goto(BASE + "en/location/", { waitUntil: "load" });
     await p2.evaluate(() => window.scrollTo(0, 1600)); await p2.waitForTimeout(400);
     await p2.tap("[data-mcta] [data-open-planner]");
+    /* the sheet opens on the tap; on a slow run the question can be asked before it has */
+    await p2.waitForFunction(() => document.getElementById("plan-dialog").open, null, { timeout: 3000 }).catch(() => {});
     expect((await p2.inputValue("#pd-ad")) === "4" && await p2.evaluate(() => document.getElementById("plan-dialog").open), "AC-15 agreement: the phone's booking bar opens the sheet with the stay set on a suite page");
     await phone.close();
   });
@@ -1446,7 +1546,7 @@ if (runs("acceptance")) {
     await page.evaluate(() => document.querySelector("[data-enquiry-mail]").addEventListener("click", (e) => e.preventDefault()));
     await page.click("[data-enquiry-mail]"); await page.waitForTimeout(200);
     const afterMail = await page.evaluate(() => ({ status: document.querySelector("[data-enquiry-status]").textContent.trim(), shown: !document.querySelector("[data-enquiry-out]").hidden, text: document.querySelector("[data-enquiry-text]").textContent.length, to: /reservation@granddiamondsuites\.com/.test(document.querySelector("[data-enquiry-out]").textContent) }));
-    expect(afterMail.shown && afterMail.text === text.length && afterMail.to && /nothing goes to the hotel until you press send there\. If no app opens, copy the message and email it to the address above\.$/.test(afterMail.status) && !/\b(has been sent|was sent|message sent|delivered|received|reserved|booked)\b/i.test(afterMail.status), "AC-26 no email app: after the email button the message and the address are still on the page, with a note on what to do if nothing opened", afterMail.status);
+    expect(afterMail.shown && afterMail.text === text.length && afterMail.to && /nothing goes to the hotel until you press send there\. If no app opens, copy the message and email it to the address above\.$/.test(afterMail.status) && !/\b(has been sent|was sent|message sent|delivered|received|reserved|booked)\b/i.test(afterMail.status), "AC-26 no email app: after the email button the message and the address are still on the page, with a note on what to do if nothing atOpen", afterMail.status);
     expect(ctx.outside.length === requestsBefore, "AC-22 no hidden sending: preparing, copying and the email button make no request to any server");
 
     /* AC-23: any edit withdraws the prepared message */
