@@ -16,14 +16,18 @@
         "map-en-960.webp",
         "map-en-1600.webp"
       ],
-      "jpg": "map-en-960.jpg"
+      "jpg": "map-en-960.jpg",
+      "large": "map-en-3200.webp",
+      "names": "map-en-names.webp"
     },
     "th": {
       "webp": [
         "map-th-960.webp",
         "map-th-1600.webp"
       ],
-      "jpg": "map-th-960.jpg"
+      "jpg": "map-th-960.jpg",
+      "large": "map-th-3200.webp",
+      "names": "map-th-names.webp"
     }
   }
 }

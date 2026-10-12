@@ -4,6 +4,8 @@
 (function () {
   "use strict";
 
+  /* tells the page's own small script that this file arrived; without it the page goes back to its plain version */
+  window.__gd = 1;
   var d = document;
   var root = d.documentElement;
   var boot = {};
@@ -15,6 +17,8 @@
   var fmt = function (s, vars) { return String(s || "").replace(/\{(\w+)\}/g, function (_, k) { return vars && k in vars ? vars[k] : ""; }); };
   var reduce = false;
   try { reduce = matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
+  /* the same breakpoints as the stylesheet, in em so that they follow the reader's text size as it does */
+  var wideEnough = function (em) { try { return matchMedia("(min-width: " + em + ")").matches; } catch (e) { return innerWidth >= parseFloat(em) * 16; } };
 
   /* ---- session memory (never personal text, never required) ---- */
   var store = {
@@ -47,6 +51,18 @@
   function showDate(iso) {
     try { return new Intl.DateTimeFormat(boot.locale || "en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(toUTC(iso))); }
     catch (e) { return iso; }
+  }
+  /* "21 to 25 November 2026": the month and the year are said once when both dates share them */
+  function showRange(a, b) {
+    try {
+      var f = new Intl.DateTimeFormat(boot.locale || "en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+      var parts = function (iso) { var o = {}; f.formatToParts(new Date(toUTC(iso))).forEach(function (p) { if (p.type !== "literal") o[p.type] = p.value; }); return o; };
+      var x = parts(a), y = parts(b), to = " " + (T.to || "to") + " ";
+      if (!x.day || !x.month || !x.year) throw 0;
+      if (x.year !== y.year) return x.day + " " + x.month + " " + x.year + to + y.day + " " + y.month + " " + y.year;
+      if (x.month !== y.month) return x.day + " " + x.month + to + y.day + " " + y.month + " " + y.year;
+      return x.day + to + y.day + " " + y.month + " " + y.year;
+    } catch (e) { return showDate(a) + " " + (T.to || "to") + " " + showDate(b); }
   }
   function adultsText(n) { return n === 1 ? T.adultsOne : fmt(T.adultsMany, { n: n }); }
 
@@ -88,19 +104,28 @@
   var planners = $$("[data-planner]").map(function (form) {
     var block = form.closest(".planner-block") || form.parentNode;
     return {
-      form: form,
+      form: form, block: block,
       inp: $("[data-in]", form), out: $("[data-out]", form), ad: $("[data-adults]", form), kids: $("[data-kids]", form),
       agesBox: $("[data-ages]", form), ageFields: $$("[data-age-field]", form), ages: $$("[data-age]", form),
-      go: $("[data-go]", form), msg: $("[data-msg]", block),
-      room: form.getAttribute("data-room-type") || ""
+      go: $("[data-go]", form), msg: $("[data-msg]", block), live: $("[data-live]", block),
+      recover: $("[data-recover]", block), rBook: $("[data-recover-book]", block), rAsk: $("[data-recover-ask]", block),
+      rAskLabel: $("[data-recover-ask-label]", block), rNote: $("[data-recover-note]", block),
+      hDates: $("[data-h-dates]", block), hGuests: $("[data-h-guests]", block), clear: $("[data-clear-dates]", block),
+      fit: $("[data-fit]", block),
+      room: form.getAttribute("data-room-type") || "",
+      suite: block.getAttribute("data-suite") || "", suiteName: block.getAttribute("data-suite-name") || "",
+      suiteMax: parseInt(block.getAttribute("data-suite-max"), 10) || 0
     };
   });
   var B = boot.booking || {};
   /* without the booking details the planners stay the plain links they are in the HTML */
   if (!B.page || !B.host) planners = [];
+  /* a stay the visitor has set at some point; the enquiry helper offers it, and never a default */
+  var stayStored = false;
   function loadStay() {
     var s = store.get("stay");
-    if (!s || typeof s !== "object" || Array.isArray(s)) s = {};
+    stayStored = !!s && typeof s === "object" && !Array.isArray(s);
+    if (!stayStored) s = {};
     var date = function (v) { return typeof v === "string" && !isNaN(toUTC(v)) ? v : ""; };
     var age = function (v) {
       var n = typeof v === "number" ? v : typeof v === "string" && /^\d{1,2}$/.test(v) ? +v : NaN;
@@ -117,11 +142,21 @@
   }
   var stay = loadStay();
   var lastGo = 0;
+  var saveStay = function () { store.set("stay", stay); stayStored = true; };
 
+  function nightsText(n) { return n === 1 ? T.nightsOne : fmt(T.nightsMany, { n: n }); }
+  function agesText(kids) {
+    var labels = kids.map(function (v) { return +v === 0 ? T.ageUnder1Short : fmt(T.ageYears, { n: +v }); });
+    if (labels.length < 2) return labels.join("");
+    return labels.slice(0, -1).join(T.sep || ", ") + (T.and || " and ") + labels[labels.length - 1];
+  }
+  /* "4 adults, 2 children aged 4 and 9": the party as a guest would say it */
   function guestsText(adults, kids) {
     var s = adultsText(adults);
-    if (kids.length) s += (T.sep || ", ") + (kids.length === 1 ? T.childrenOne : fmt(T.childrenMany, { n: kids.length }));
-    return s;
+    if (!kids.length) return s;
+    s += (T.sep || ", ") + (kids.length === 1 ? T.childrenOne : fmt(T.childrenMany, { n: kids.length }));
+    var known = kids.every(function (v) { return v !== "" && v !== null && !isNaN(parseInt(v, 10)); });
+    return s + " " + (known ? fmt(T.agedList, { ages: agesText(kids) }) : "(" + T.agesNeeded + ")");
   }
   /* a room type is added only on a suite page whose suite has an identifier from the hotel */
   function withRoom(url, room) {
@@ -136,41 +171,93 @@
     } catch (e) { return B.page; }
     var parts = [];
     if (params.date) { parts.push("date=" + params.date); parts.push("nights=" + params.nights); }
-    parts.push("adults=" + params.adults);
-    if (params.ages && params.ages.length) parts.push("children-age=" + params.ages.join(";"));
-    return B.page + "?" + parts.join("&");
+    if (params.adults) parts.push("adults=" + params.adults);
+    if (params.adults && params.ages && params.ages.length) parts.push("children-age=" + params.ages.join(";"));
+    return parts.length ? B.page + "?" + parts.join("&") : B.page;
   }
 
+  /* One reading of the stay. state is one of:
+       empty        no dates: the booking page opens with its own dates and these guests
+       valid        dates and guests the booking page was seen to take as entered
+       invalid      something to correct here (a missing age, half a date range, a past date)
+       unsupported  a request the booking page does not take as entered (too many nights
+                    or guests): nothing is shortened or dropped, two other routes are offered */
   function validate() {
     var today = bangkokToday();
-    var res = { ok: true, field: null, ageIndex: -1, text: "", info: "", url: B.page };
+    var res = { ok: true, state: "empty", field: null, ageIndex: -1, text: "", info: "", url: B.page, bypass: B.page, why: "", nights: 0, total: 0 };
     var a = stay.in, b = stay.out;
     var adults = Math.min(Math.max(parseInt(stay.adults, 10) || 2, 1), B.maxAdults);
     var ages = [];
+    res.total = adults + stay.kids.length;
+    var fail = function (field, text, i) { res.ok = false; res.state = "invalid"; res.field = field; res.text = text; res.ageIndex = i === undefined ? -1 : i; return res; };
+    var n = 0;
+    if (a || b) {
+      if (!a) return fail("in", T.msgNeedIn || T.msgNeedBoth);
+      if (!b) return fail("out", T.msgNeedOut || T.msgNeedBoth);
+      if (isNaN(toUTC(a))) return fail("in", T.msgInvalid);
+      if (isNaN(toUTC(b))) return fail("out", T.msgInvalid);
+      if (a < today) return fail("in", fmt(T.msgPast, { date: showDate(today) }));
+      n = nightsBetween(a, b);
+      if (n < 1) return fail("out", T.msgOrder);
+    }
+    res.nights = n;
+    /* more guests than one search takes: said at once, before any age is asked for. Only the dates travel. */
+    if (res.total > (B.maxGuests || 99)) {
+      res.ok = false; res.state = "unsupported"; res.why = "party";
+      res.text = fmt(T.msgParty, { n: B.maxGuests, m: res.total });
+      res.bypass = bookingLink({ date: n ? a : "", nights: n });
+      return res;
+    }
     for (var i = 0; i < stay.kids.length; i++) {
       var v = stay.kids[i];
-      if (v === "" || v === null || isNaN(parseInt(v, 10)) || +v < 0 || +v > B.maxChildAge) {
-        res.ok = false; res.field = "age"; res.ageIndex = i; res.text = T.msgAges; return res;
-      }
+      if (v === "" || v === null || isNaN(parseInt(v, 10)) || +v < 0 || +v > B.maxChildAge) return fail("age", T.msgAges, i);
       ages.push(parseInt(v, 10));
     }
-    /* no dates: the booking page opens with its own dates and these guests */
-    if (!a && !b) { res.url = bookingLink({ adults: adults, ages: ages }); return res; }
-    if (!a || !b) { res.ok = false; res.field = a ? "out" : "in"; res.text = T.msgNeedBoth; return res; }
-    if (isNaN(toUTC(a))) { res.ok = false; res.field = "in"; res.text = T.msgInvalid; return res; }
-    if (isNaN(toUTC(b))) { res.ok = false; res.field = "out"; res.text = T.msgInvalid; return res; }
-    if (a < today) { res.ok = false; res.field = "in"; res.text = fmt(T.msgPast, { date: showDate(today) }); return res; }
-    var n = nightsBetween(a, b);
-    if (n < 1) { res.ok = false; res.field = "out"; res.text = T.msgOrder; return res; }
-    if (n > B.maxNights) { res.ok = false; res.field = "out"; res.text = fmt(T.msgLong, { n: B.maxNights }); return res; }
-    res.url = bookingLink({ date: a, nights: n, adults: adults, ages: ages });
-    res.info = fmt(T.msgStay || "{s}. {a} to {b}", { s: fmt(n === 1 ? T.msgNight : T.msgNights, { n: n, a: guestsText(adults, ages) }), a: showDate(a), b: showDate(b) });
+    /* more nights than the booking page showed it takes: the dates and guests travel as entered, nothing is shortened */
+    if (n > B.maxNights) {
+      res.ok = false; res.state = "unsupported"; res.why = "long";
+      res.text = fmt(T.msgLong, { n: B.maxNights, m: n });
+      res.bypass = bookingLink({ date: a, nights: n, adults: adults, ages: ages });
+      return res;
+    }
+    res.url = bookingLink({ date: n ? a : "", nights: n, adults: adults, ages: ages });
+    if (n) {
+      res.state = "valid";
+      res.info = fmt(T.msgStay || "{s}. {a} to {b}", { s: fmt(n === 1 ? T.msgNight : T.msgNights, { n: n, a: guestsText(adults, ages) }), a: showDate(a), b: showDate(b) });
+    } else res.info = guestsText(adults, ages);
     return res;
+  }
+
+  function datesLine() {
+    var a = stay.in, b = stay.out;
+    if (!a && !b) return T.notSelected;
+    if (!a || !b || isNaN(toUTC(a)) || isNaN(toUTC(b))) return T.datesPartial;
+    if (nightsBetween(a, b) < 1) return T.msgOrder;
+    return fmt(T.datesRange, { r: showRange(a, b), n: nightsText(nightsBetween(a, b)) });
+  }
+
+  function paintFit(p, res) {
+    if (!p.fit) return;
+    var over = p.suiteMax && res.total > p.suiteMax && res.state !== "unsupported";
+    p.fit.hidden = !over;
+    if (!over) return;
+    p.fit.textContent = fmt(T.fitOver, { suite: p.suiteName, n: p.suiteMax, m: res.total }) + " ";
+    var others = (boot.suites || []).filter(function (s) { return s.o >= res.total && s.s !== p.suite; });
+    if (others.length) {
+      p.fit.appendChild(d.createTextNode(fmt(T.fitOthers, { m: res.total }) + " "));
+      others.forEach(function (s, i) {
+        var a = d.createElement("a"); a.className = "link"; a.href = s.h; a.textContent = s.n;
+        p.fit.appendChild(a);
+        p.fit.appendChild(d.createTextNode(i < others.length - 1 ? (T.sep || ", ") : (T.stop || ". ")));
+      });
+    }
+    p.fit.appendChild(d.createTextNode(T.fitRooms));
   }
 
   function paintPlanners(note) {
     var today = bangkokToday();
     var res = validate();
+    var unsupported = res.state === "unsupported";
     planners.forEach(function (p) {
       if (p.inp.value !== stay.in) p.inp.value = stay.in;
       if (p.out.value !== stay.out) p.out.value = stay.out;
@@ -188,15 +275,33 @@
           if (sel.value !== want) sel.value = want;
         });
       }
-      p.inp.min = today;
-      p.out.min = stay.in && !isNaN(toUTC(stay.in)) ? addDays(stay.in, 1) : addDays(today, 1);
+      /* Set only when it changes. Writing a date field's min again, even to the same value, makes the browser
+         rebuild the field, and a year being typed digit by digit is lost half way. */
+      var outMin = stay.in && !isNaN(toUTC(stay.in)) ? addDays(stay.in, 1) : addDays(today, 1);
+      if (p.inp.min !== today) p.inp.min = today;
+      if (p.out.min !== outMin) p.out.min = outMin;
       /* until the details are valid the link stays a plain link to the booking page */
       p.go.href = res.ok ? withRoom(res.url, p.room) : B.page;
       [p.inp, p.out].forEach(function (el) { el.removeAttribute("aria-invalid"); el.closest(".field").classList.remove("is-invalid"); });
       if (p.msg) {
-        p.msg.className = "planner__msg is-info";
-        p.msg.textContent = note || (res.ok ? res.info : "");
+        p.msg.className = "planner__msg " + (unsupported ? "is-limit" : "is-info");
+        p.msg.textContent = [note, unsupported ? res.text : ""].filter(Boolean).join(" ");
       }
+      if (p.recover) {
+        p.recover.hidden = !unsupported;
+        if (unsupported) {
+          var party = res.why === "party";
+          p.rBook.href = res.bypass;
+          p.rAsk.href = p.rAsk.getAttribute(party ? "data-ask-group" : "data-ask-long");
+          if (p.rAskLabel) p.rAskLabel.textContent = p.rAsk.getAttribute(party ? "data-label-group" : "data-label-long");
+          if (p.rNote) p.rNote.textContent = (party ? T.recoverNoteParty : T.recoverNoteLong) + " " + T.recoverNoteAsk;
+        }
+      }
+      if (p.hDates) p.hDates.textContent = datesLine();
+      if (p.hGuests) p.hGuests.textContent = guestsText(stay.adults, stay.kids);
+      if (p.clear) p.clear.hidden = !(stay.in || stay.out);
+      if (p.live) p.live.textContent = note ? "" : (res.ok && res.state === "valid" ? res.info : "");
+      paintFit(p, res);
     });
     return res;
   }
@@ -227,7 +332,7 @@
         note = fmt(T.msgAdjusted, { date: showDate(stay.out) });
       }
       if (staySig() === before) return;
-      store.set("stay", stay);
+      saveStay();
       paintPlanners(note);
     }
     /* a date field reports a finished date through "input" in some browsers and "change" in others */
@@ -238,15 +343,36 @@
     p.ad.addEventListener("change", function () { read("ad"); });
     if (p.kids) p.kids.addEventListener("change", function () { read("kids"); });
     p.ages.forEach(function (sel) { sel.addEventListener("change", function () { read("age"); }); });
-    p.go.addEventListener("click", function (ev) {
-      read("go");
-      var res = validate();
-      if (!res.ok) { ev.preventDefault(); showError(p, res); return; }
-      /* set at the moment of the click, so a link painted for an earlier state can never be followed */
-      p.go.href = withRoom(res.url, p.room);
+    /* leaving for the booking page: the address is set at the moment of the click, so a link painted
+       for an earlier state can never be followed, and a second click straight after is ignored */
+    var leave = function (ev, link, url) {
+      link.href = url;
       var now = Date.now();
       if (now - lastGo < 1200) { ev.preventDefault(); return; }
       lastGo = now;
+    };
+    p.go.addEventListener("click", function (ev) {
+      read("go");
+      var res = validate();
+      if (res.state === "unsupported") {
+        /* not an error to correct: show the two ways forward and put the keyboard on the first */
+        ev.preventDefault(); paintPlanners();
+        if (p.rBook) p.rBook.focus();
+        return;
+      }
+      if (!res.ok) { ev.preventDefault(); showError(p, res); return; }
+      leave(ev, p.go, withRoom(res.url, p.room));
+    });
+    if (p.rBook) p.rBook.addEventListener("click", function (ev) {
+      var res = validate();
+      if (res.state !== "unsupported") { ev.preventDefault(); paintPlanners(); return; }
+      leave(ev, p.rBook, res.bypass);
+    });
+    if (p.clear) p.clear.addEventListener("click", function () {
+      stay.in = ""; stay.out = "";
+      saveStay();
+      paintPlanners(T.msgCleared);
+      p.inp.focus();
     });
     p.form.addEventListener("submit", function (ev) { ev.preventDefault(); p.go.click(); });
   });
@@ -257,25 +383,42 @@
     stay = loadStay();
     paintPlanners();
   });
+  /* a tab left open past midnight in Bangkok: the earliest date moves on, and a stay that has slipped into the past says so */
+  d.addEventListener("visibilitychange", function () { if (!d.hidden && planners.length) paintPlanners(); });
 
-  /* open the planner dialog from any booking button */
+  /* Reaching the stay planner. A page that has a planner of its own (the home page, a suite page, rates,
+     how booking works) uses that one for every "Check dates" control: one planner on the page, and a
+     suite page keeps its suite. Every other page opens the planner as a sheet. Without this script the
+     controls are plain links: to the planner on the page, or to the hotel's booking page. */
   var planDialog = d.getElementById("plan-dialog");
   var dock = $("[data-dock]");
+  var goDock = function () {
+    if (!dock || !planners.length || dock.offsetParent === null) return false;
+    dock.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
+    var coarse = false;
+    try { coarse = matchMedia("(pointer: coarse)").matches; } catch (e) {}
+    /* a keyboard lands in the first field; on a touch screen focusing a date field would open its picker unasked */
+    var to = coarse ? (dock.hasAttribute("tabindex") ? dock : dock.closest("[tabindex]") || dock) : $("[data-in]", dock);
+    if (to) to.focus({ preventScroll: true });
+    return true;
+  };
+  $$("[data-prefer-dock]").forEach(function (a) {
+    a.addEventListener("click", function (ev) { if (goDock()) ev.preventDefault(); });
+  });
   $$("[data-open-planner]").forEach(function (a) {
-    /* the button opens the planner in the page, so it no longer says it opens a new tab */
-    if (canDialog && planDialog) { var note = $("[data-newtab-note]", a); if (note) note.parentNode.removeChild(note); }
+    /* the control opens the planner in the page, so it no longer says it opens a new tab */
+    if ((dock && planners.length) || (canDialog && planDialog)) { var note = $("[data-newtab-note]", a); if (note) note.parentNode.removeChild(note); }
     a.addEventListener("click", function (ev) {
       if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.button) return;
-      /* on the home page the planner is already on screen for wide viewports */
-      if (a.hasAttribute("data-prefer-dock") && dock && dock.offsetParent !== null && innerWidth >= 900) {
-        ev.preventDefault();
-        var first = $("[data-in]", dock);
-        if (first) { first.focus({ preventScroll: true }); dock.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" }); }
-        return;
-      }
       var menu = d.getElementById("menu");
       var from = a;
-      if (menu && menu.open) { from = $("[data-open-menu]"); menu.close(); }
+      if (menu && menu.open) {
+        from = $("[data-open-menu]");
+        /* going to the planner on the page: the menu must not pull focus back to its button as it closes */
+        if (dock && planners.length && dock.offsetParent !== null) openers = openers.filter(function (o) { return o.dlg !== menu; });
+        menu.close();
+      }
+      if (goDock()) { ev.preventDefault(); return; }
       if (openDialog(planDialog, from)) {
         ev.preventDefault();
         var inp = $("[data-in]", planDialog);
@@ -330,6 +473,12 @@
     var show;
     if (heroCta) show = heroCta.getBoundingClientRect().bottom < 60;
     else show = (window.scrollY || root.scrollTop) > 240;
+    /* while the page's own planner is on screen the bar would only point at what is already there */
+    var dk = $("[data-dock]");
+    if (show && dk && dk.offsetParent !== null) {
+      var dr = dk.getBoundingClientRect();
+      if (dr.top < innerHeight - 120 && dr.bottom > 120) show = false;
+    }
     var ae = d.activeElement;
     if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName) && ae.getClientRects().length) show = false;
     if ($("dialog[open]")) show = false;
@@ -339,7 +488,7 @@
     /* the width a classic scrollbar takes, so full-bleed parts can line up with the page column */
     root.style.setProperty("--sbw", Math.max(0, innerWidth - root.clientWidth) + "px");
     if (!bar) return;
-    var small = innerWidth < 1040;
+    var small = !wideEnough("65em");
     root.style.setProperty("--mcta-h", small ? bar.offsetHeight + "px" : "0px");
   }
   d.addEventListener("focusin", syncBar);
@@ -467,7 +616,7 @@
   /* selector */
   $$("[data-finder]").forEach(function (finder) {
     var tabs = $$(".finder__tab", finder);
-    var wide = function () { return innerWidth >= 1000; };
+    var wide = function () { return wideEnough("62.5em"); };
     var select = function (tab, opts) {
       opts = opts || {};
       var wasOpen = tab.getAttribute("aria-expanded") === "true";
@@ -516,25 +665,33 @@
     var thumbs = $$("[data-thumb]", stage);
     var ids = thumbs.map(function (t) { return t.getAttribute("data-id"); });
     open.setAttribute("data-set", ids.join(","));
+    var turn = 0, failed = false;
     thumbs.forEach(function (t, i) {
       t.addEventListener("click", function () {
         var m = V[ids[i]];
-        if (!m || open.getAttribute("data-id") === ids[i]) return;
+        if (!m || (open.getAttribute("data-id") === ids[i] && !failed)) return;
+        /* only the latest choice may finish: a slow photograph can never arrive under a later one's caption */
+        var mine = ++turn;
+        failed = false;
         thumbs.forEach(function (x) { x.removeAttribute("aria-current"); });
         t.setAttribute("aria-current", "true");
         open.setAttribute("data-id", ids[i]);
-        if (cap) cap.textContent = m.capShort || m.cap;
-        if (count) count.textContent = fmt(T.photoOf, { i: i + 1, n: ids.length });
-        var swap = function () {
-          var pic = img.parentNode;
-          $$("source", pic).forEach(function (s) { s.srcset = setFor(m, s.type === "image/avif" ? "avif" : "webp"); });
-          img.alt = m.alt; img.width = m.w; img.height = m.h;
-          img.style.setProperty("--fx", m.fx + "%"); img.style.setProperty("--fy", m.fy + "%");
-          img.src = jpgFor(m);
-          var done = function () { img.classList.remove("is-swapping"); };
-          if (img.decode) img.decode().then(done, done); else done();
+        stage.classList.add("is-loading");
+        /* the photograph on show stays until its replacement is ready; the caption changes with the picture */
+        var pic = img.parentNode;
+        $$("source", pic).forEach(function (s) { s.srcset = setFor(m, s.type === "image/avif" ? "avif" : "webp"); });
+        img.alt = m.alt; img.width = m.w; img.height = m.h;
+        img.style.setProperty("--fx", m.fx + "%"); img.style.setProperty("--fy", m.fy + "%");
+        img.src = jpgFor(m);
+        var settle = function (ok) {
+          if (mine !== turn) return;
+          failed = !ok;
+          stage.classList.remove("is-loading");
+          if (cap) cap.textContent = ok ? (m.capShort || m.cap) : T.photoFailed;
+          if (count) count.textContent = fmt(T.photoOf, { i: i + 1, n: ids.length });
+          if (ok && !reduce) { img.classList.remove("is-fresh"); void img.offsetWidth; img.classList.add("is-fresh"); }
         };
-        if (reduce) swap(); else { img.classList.add("is-swapping"); setTimeout(swap, 180); }
+        if (img.decode) img.decode().then(function () { settle(true); }, function () { settle(false); }); else settle(true);
       });
     });
   });
@@ -543,17 +700,38 @@
   var viewer = d.getElementById("viewer");
   if (viewer && canDialog) {
     var vImg = $("[data-img]", viewer), vCap = $("[data-cap]", viewer), vLink = $("[data-link]", viewer), vCount = $("[data-count]", viewer);
-    var items = [], at = 0;
+    var vFail = $("[data-fail]", viewer), vRetry = $("[data-retry]", viewer), vFile = $("[data-file]", viewer);
+    var items = [], at = 0, vTurn = 0;
+    /* the photograph is shown only once it has loaded for the choice still on screen, so a slow
+       one can never sit under another's caption; a failed one says so and offers two ways on */
+    var arrived = function (mine, ok) {
+      if (mine !== vTurn) return;
+      viewer.classList.remove("is-loading");
+      viewer.classList.toggle("is-failed", !ok);
+      if (vFail) vFail.hidden = ok;
+    };
+    vImg.addEventListener("load", function () { arrived(+vImg.getAttribute("data-turn"), true); });
+    vImg.addEventListener("error", function () { if (vImg.getAttribute("src")) arrived(+vImg.getAttribute("data-turn"), false); });
+    if (vRetry) vRetry.addEventListener("click", function () { paint(); });
     var paint = function () {
       var m = V[items[at]];
       if (!m) return;
-      vImg.removeAttribute("srcset");
+      var mine = ++vTurn;
+      viewer.classList.add("is-loading"); viewer.classList.remove("is-failed");
+      if (vFail) vFail.hidden = true;
+      if (vFile) vFile.href = jpgFor(m);
+      vImg.setAttribute("data-turn", mine);
+      vImg.removeAttribute("srcset"); vImg.removeAttribute("src");
       vImg.sizes = "100vw";
       vImg.width = m.w; vImg.height = m.h; vImg.alt = m.alt;
       vImg.srcset = setFor(m, "webp");
       vImg.src = jpgFor(m);
+      if (vImg.complete && vImg.naturalWidth) arrived(mine, true);
       vCap.textContent = m.cap;
-      if (m.href && m.href !== location.pathname) { vLink.hidden = false; vLink.href = m.href; } else vLink.hidden = true;
+      /* "See this suite" is offered everywhere except on that suite's own page */
+      var there = false;
+      try { there = !!m.href && new URL(m.href, location.href).pathname === location.pathname; } catch (e) {}
+      if (m.href && !there) { vLink.hidden = false; vLink.href = m.href; } else vLink.hidden = true;
       vCount.textContent = fmt(T.photoOf, { i: at + 1, n: items.length });
       var one = items.length < 2;
       $("[data-prev]", viewer).hidden = one; $("[data-next]", viewer).hidden = one;
@@ -598,7 +776,12 @@
       var dx = ev.changedTouches[0].clientX - tx; tx = null;
       if (Math.abs(dx) > 48) step(dx > 0 ? -1 : 1);
     }, { passive: true });
-    viewer.addEventListener("close", function () { vImg.removeAttribute("srcset"); vImg.removeAttribute("src"); });
+    viewer.addEventListener("close", function () {
+      vTurn++;
+      vImg.removeAttribute("srcset"); vImg.removeAttribute("src");
+      viewer.classList.remove("is-loading", "is-failed");
+      if (vFail) vFail.hidden = true;
+    });
   }
 
   /* ==================================================================== */
@@ -622,25 +805,396 @@
         } catch (e) {}
       }
     };
-    var fixSame = function (changed, other) {
-      if (changed.value === other.value) other.value = slugs.filter(function (s) { return s !== changed.value; })[0];
-    };
+    var cStatus = $("[data-compare-status]"), diffBtn = $("[data-diff]"), diffNote = $("[data-diff-note]");
+    var names = {};
+    $$("option", selA).forEach(function (o) { names[o.value] = o.textContent; });
     var saved = store.get("compare"), q = new URLSearchParams(location.search);
     var a0 = q.get("a") || (saved && saved[0]), b0 = q.get("b") || (saved && saved[1]);
+    /* an address that names an unknown suite, or the same suite twice, falls back to the first two different ones */
     if (slugs.indexOf(a0) >= 0) selA.value = a0;
     if (slugs.indexOf(b0) >= 0) selB.value = b0;
-    fixSame(selA, selB);
-    selA.addEventListener("change", function () { fixSame(selA, selB); paintCmp(true); });
-    selB.addEventListener("change", function () { fixSame(selB, selA); paintCmp(true); });
+    if (selA.value === selB.value) selB.value = slugs.filter(function (s) { return s !== selA.value; })[0];
+    var pair = [selA.value, selB.value];
+    /* rows that read the same in every column on show can be folded away, and brought back */
+    var diffOn = false;
+    var paintDiff = function () {
+      if (!diffBtn) return;
+      var hidden = 0;
+      $$("tbody tr", cmp).forEach(function (tr) {
+        var shown = $$("td", tr).filter(function (td) { return getComputedStyle(td).display !== "none"; });
+        var same = shown.length > 1 && shown.every(function (td) { return td.textContent.trim() === shown[0].textContent.trim(); });
+        tr.hidden = diffOn && same;
+        if (tr.hidden) hidden++;
+      });
+      diffBtn.setAttribute("aria-pressed", diffOn ? "true" : "false");
+      if (diffNote) diffNote.textContent = !diffOn ? "" : hidden ? fmt(diffNote.getAttribute(hidden === 1 ? "data-one" : "data-many"), { n: hidden }) : diffNote.getAttribute("data-none");
+    };
+    /* choosing the suite the other control already holds swaps the two, so neither choice is lost */
+    var onPick = function (changed, other, i) {
+      var swapped = changed.value === other.value;
+      if (swapped) other.value = pair[i];
+      pair = [selA.value, selB.value];
+      paintCmp(true);
+      paintDiff();
+      if (cStatus) cStatus.textContent = fmt(cStatus.getAttribute(swapped ? "data-swapped" : "data-pair"), { a: names[selA.value], b: names[selB.value], c: names[changed.value] });
+    };
+    selA.addEventListener("change", function () { onPick(selA, selB, 0); });
+    selB.addEventListener("change", function () { onPick(selB, selA, 1); });
+    if (diffBtn) {
+      diffBtn.addEventListener("click", function () { diffOn = !diffOn; paintDiff(); });
+      addEventListener("resize", paintDiff);
+    }
     paintCmp(false);
+    paintDiff();
+    /* a link to this comparison, for someone else to open */
+    var shareBtn = $("[data-compare-share]"), shareOut = $("[data-compare-share-out]");
+    if (shareBtn) shareBtn.addEventListener("click", function () {
+      var u = location.href;
+      try { var x = new URL(location.href); x.searchParams.set("a", selA.value); x.searchParams.set("b", selB.value); x.hash = ""; u = x.toString(); } catch (e) {}
+      var say = function (key, show) {
+        shareOut.className = "copy-status" + (key === "data-failed" ? " status is-error" : "");
+        shareOut.textContent = shareOut.getAttribute(key) + (show ? " " + u : "");
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(u).then(function () { say("data-copied"); }, function () { say("data-failed", true); });
+      else say("data-failed", true);
+    });
   }
 
   /* ==================================================================== */
-  /* Location explorer                                                     */
+  /* Neighbourhood map                                                     */
+  /* A fixed frame (the drawn plate) that can be moved and zoomed inside   */
+  /* its window. The picture is scaled; the markers are moved with it but  */
+  /* keep their size. Nothing is fetched from anywhere else unless the     */
+  /* visitor chooses the satellite view.                                   */
+  /* ==================================================================== */
+  $$("[data-map]").forEach(function (el) {
+    var view = $("[data-view]", el), stage = $("[data-map-stage]", el), raster = $("[data-raster]", el), pinsEl = $("[data-pins]", el), plate = $(".mapplate__img", el);
+    if (!view || !stage || !raster || !pinsEl || !plate) return;
+    var num = function (k, dflt) { var v = parseFloat(el.getAttribute(k)); return isNaN(v) ? dflt : v; };
+    var ratio = num("data-ratio", 4 / 3), ground = num("data-ground", 2000), hx = num("data-hx", 0.5), hy = num("data-hy", 0.5);
+    var FINEST = 0.55; /* metres of ground to one CSS pixel at the closest zoom */
+    var vw = 0, vh = 0, bw = 0, bh = 0, s = 1, sMax = 1, cx = hx, cy = hy, tx = 0, ty = 0, home = null, anim = 0, settleT = 0, live = false;
+    var pins = $$(".pin[data-pin]", pinsEl);
+    var zIn = $('[data-zoom="in"]', el), zOut = $('[data-zoom="out"]', el), zHome = $('[data-zoom="reset"]', el);
+    var clamp = function (v, lo, hi) { return Math.min(hi, Math.max(lo, v)); };
+    var at = function (p) { return [parseFloat(p.style.getPropertyValue("--x")) / 100, parseFloat(p.style.getPropertyValue("--y")) / 100]; };
+    var afterMove = []; /* what else has to follow the map: the satellite squares */
+
+    function measure() {
+      vw = view.clientWidth; vh = view.clientHeight;
+      if (!vw || !vh) return false;
+      bw = Math.max(vw, vh * ratio); bh = bw / ratio;
+      sMax = Math.max(1, ground / bw / FINEST);
+      stage.style.width = bw + "px"; stage.style.height = bh + "px";
+      return true;
+    }
+    function apply() {
+      s = clamp(s, 1, sMax);
+      var w = bw * s, h = bh * s;
+      tx = clamp(vw / 2 - cx * w, vw - w, 0); ty = clamp(vh / 2 - cy * h, vh - h, 0);
+      cx = (vw / 2 - tx) / w; cy = (vh / 2 - ty) / h;
+      var move = "translate(" + tx.toFixed(2) + "px," + ty.toFixed(2) + "px)";
+      raster.style.transform = move + " scale(" + s.toFixed(4) + ")";
+      pinsEl.style.width = w.toFixed(2) + "px"; pinsEl.style.height = h.toFixed(2) + "px"; pinsEl.style.transform = move;
+      el.classList.toggle("is-zoomed", s > 1.02);
+      if (zIn) zIn.disabled = s >= sMax - 0.001;
+      if (zOut) zOut.disabled = s <= 1.001;
+      if (zHome) zHome.disabled = !!home && s <= 1.001 && Math.abs(tx - home.tx) < 1 && Math.abs(ty - home.ty) < 1;
+      /* a card that is on show follows its marker */
+      pins.forEach(function (p) { if (shows(p)) placeCard(p); });
+      afterMove.forEach(function (fn) { fn(false); });
+      clearTimeout(settleT); settleT = setTimeout(settle, 140);
+    }
+    /* Where a marker's card goes. On a wide map it sits beside its marker, above or below: whichever side
+       holds it whole, keeps clear of the hotel's own label and of the controls, and covers the fewest other
+       markers. On a small map (a phone) it lies along the bottom edge or the top one, clear of its own marker
+       and over as few of the others as it can be, so it is always whole. */
+    var hotelName = $(".pin-label", pinsEl);
+    var keepClear = $$(".pin-label, .pin--hotel", pinsEl).concat($$(".mapseg, .mapzoom", el)), EDGE = 8, GAP = 10;
+    var headEl = $(".site-header"), barEl = $(".mcta");
+    var shows = function (p) { return p.getAttribute("aria-pressed") === "true" || p.classList.contains("is-lit") || p.classList.contains("is-over") || p === d.activeElement; };
+    function placeCard(p) {
+      var card = $(".pin__card", p);
+      if (!card || !live) return;
+      var q = at(p), px = tx + q[0] * bw * s, py = ty + q[1] * bh * s, r = p.offsetWidth / 2, dock = !wideEnough("43.75em");
+      var wide = dock ? Math.min(vw - 2 * EDGE, 352) + "px" : "";
+      if (card.style.width !== wide) card.style.width = wide;
+      p.classList.toggle("is-docked", dock);
+      var vr = view.getBoundingClientRect(), cw = card.offsetWidth, ch = card.offsetHeight;
+      var X = cw > vw - 2 * EDGE ? (vw - cw) / 2 : clamp(px - cw / 2, EDGE, vw - EDGE - cw), Y;
+      /* the part of the window that can be seen: not under the page's header, not under the phone's booking
+         bar, not off the screen. If that part cannot hold the card, the whole window is used. */
+      var lo = Math.max(0, (headEl ? headEl.getBoundingClientRect().bottom : 0) - vr.top);
+      var hi = Math.min(vh, (barEl && barEl.classList.contains("is-on") ? barEl.getBoundingClientRect().top : innerHeight) - vr.top);
+      if (hi - lo < ch + 2 * EDGE) { lo = 0; hi = vh; }
+      var over = function (top) {
+        var n = 0;
+        pins.forEach(function (o) { if (o === p || o.disabled) return; var k = at(o), ox = tx + k[0] * bw * s, oy = ty + k[1] * bh * s; if (ox > X - 12 && ox < X + cw + 12 && oy > top - 12 && oy < top + ch + 12) n++; });
+        return n;
+      };
+      if (dock) {
+        var edge = function (top) { return (py + r + 6 > top && py - r - 6 < top + ch ? 100 : 0) + over(top); };
+        Y = edge(lo + EDGE) < edge(hi - EDGE - ch) ? lo + EDGE : hi - EDGE - ch;
+        p.classList.remove("is-below");
+      } else {
+        var cost = function (top) {
+          var c = top < lo + EDGE || top + ch > hi - EDGE ? 100 : 0;
+          keepClear.forEach(function (k) { var b = k.getBoundingClientRect(); if (X < b.right - vr.left + 4 && X + cw > b.left - vr.left - 4 && top < b.bottom - vr.top + 4 && top + ch > b.top - vr.top - 4) c += k.parentNode === pinsEl ? 4 : 20; });
+          return c + 6 * over(top);
+        };
+        var up = cost(py - r - GAP - ch), down = cost(py + r + GAP), below = down < up || (up >= 100 && down >= 100 && py < (lo + hi) / 2);
+        Y = below ? py + r + GAP : py - r - GAP - ch;
+        p.classList.toggle("is-below", below);
+        card.style.setProperty("--caret", clamp(px - X, 14, cw - 14).toFixed(1) + "px");
+      }
+      if (hotelName) { var hb = hotelName.getBoundingClientRect(); p.classList.toggle("is-on-label", X < hb.right - vr.left && X + cw > hb.left - vr.left && Y < hb.bottom - vr.top && Y + ch > hb.top - vr.top); }
+      var o = px - r + p.clientLeft, t = py - r + p.clientTop;
+      card.style.setProperty("--cx", (X - o).toFixed(1) + "px"); card.style.setProperty("--cy", (Y - t).toFixed(1) + "px");
+    }
+    /* once the map is at rest: a sharper drawing if it has been enlarged, and any satellite squares now in view */
+    var have = 0;
+    function settle() {
+      var need = bw * s * Math.min(window.devicePixelRatio || 1, 2);
+      var want = need > 1920 ? "data-large" : need > 1150 ? "data-mid" : "", rank = want === "data-large" ? 2 : want ? 1 : 0;
+      if (rank > have && (plate.naturalWidth || 0) * 1.2 < need) {
+        have = rank;
+        var url = el.getAttribute(want), probe = new Image();
+        probe.onload = function () { $$("source", plate.parentNode).forEach(function (so) { so.parentNode.removeChild(so); }); plate.removeAttribute("srcset"); plate.loading = "eager"; plate.src = url; };
+        probe.src = url;
+      }
+      afterMove.forEach(function (fn) { fn(true); });
+    }
+    function glide(S, X, Y) {
+      cancelAnimationFrame(anim);
+      S = clamp(S, 1, sMax);
+      if (reduce || !window.requestAnimationFrame) { s = S; cx = X; cy = Y; apply(); return; }
+      var s0 = s, x0 = cx, y0 = cy, t0 = 0;
+      var step = function (t) {
+        if (!t0) t0 = t;
+        var k = Math.min(1, (t - t0) / 240), e2 = 1 - Math.pow(1 - k, 3);
+        s = s0 * Math.pow(S / s0, e2); cx = x0 + (X - x0) * e2; cy = y0 + (Y - y0) * e2;
+        apply();
+        if (k < 1) anim = requestAnimationFrame(step);
+      };
+      anim = requestAnimationFrame(step);
+    }
+    /* zoom about a point of the window, so that what is under the pointer or between two fingers stays there */
+    function aim(S, px, py) {
+      S = clamp(S, 1, sMax);
+      var fx = (px - tx) / (bw * s), fy = (py - ty) / (bh * s);
+      return [S, fx - (px - vw / 2) / (bw * S), fy - (py - vh / 2) / (bh * S)];
+    }
+    function zoomAbout(S, px, py) { var g = aim(S, px, py); s = g[0]; cx = g[1]; cy = g[2]; apply(); }
+    /* bring a marker into the window if it is outside it or under the controls */
+    function reveal(p) {
+      var q = at(p), px = tx + q[0] * bw * s, py = ty + q[1] * bh * s;
+      if (px < 40 || px > vw - 40 || py < 96 || py > vh - 40) glide(s, q[0], q[1]);
+    }
+    function start() {
+      el.classList.add("is-live");
+      if (!measure()) { el.classList.remove("is-live"); return; }
+      view.tabIndex = 0; view.setAttribute("role", "group"); view.setAttribute("aria-label", view.getAttribute("data-label") || "");
+      if (!live) { live = true; s = 1; cx = hx; cy = hy; apply(); home = { tx: tx, ty: ty }; apply(); }
+      else apply();
+    }
+
+    /* dragging, and two fingers */
+    var pts = {}, pinch = 0, tap = null;
+    view.addEventListener("pointerdown", function (ev) {
+      if (!live || ev.button > 0 || (ev.target.closest && ev.target.closest("button, a"))) return;
+      tap = Object.keys(pts).length ? null : { id: ev.pointerId, x: ev.clientX, y: ev.clientY };
+      pts[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+      try { view.setPointerCapture(ev.pointerId); } catch (e) {}
+      cancelAnimationFrame(anim); pinch = 0;
+      el.classList.add("is-dragging");
+    });
+    view.addEventListener("pointermove", function (ev) {
+      var p = pts[ev.pointerId];
+      if (!p) return;
+      var dx = ev.clientX - p.x, dy = ev.clientY - p.y, ids = Object.keys(pts);
+      p.x = ev.clientX; p.y = ev.clientY;
+      if (tap && (tap.id !== ev.pointerId || Math.abs(ev.clientX - tap.x) + Math.abs(ev.clientY - tap.y) > 6)) tap = null;
+      if (ids.length === 1) { cx -= dx / (bw * s); cy -= dy / (bh * s); apply(); return; }
+      var a = pts[ids[0]], b = pts[ids[1]], r = view.getBoundingClientRect(), dist = Math.hypot(a.x - b.x, a.y - b.y);
+      cx -= dx / 2 / (bw * s); cy -= dy / 2 / (bh * s); apply();
+      if (pinch && dist) zoomAbout(s * dist / pinch, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
+      pinch = dist;
+    });
+    var lift = function (ev) {
+      if (!pts[ev.pointerId]) return;
+      delete pts[ev.pointerId]; pinch = 0;
+      if (!Object.keys(pts).length) el.classList.remove("is-dragging");
+      /* a tap on the map itself, not a drag, puts the open card away */
+      if (ev.type === "pointerup" && tap && tap.id === ev.pointerId) unchoose();
+      if (ev.type !== "lostpointercapture") tap = null;
+    };
+    view.addEventListener("pointerup", lift); view.addEventListener("pointercancel", lift); view.addEventListener("lostpointercapture", lift);
+    /* the wheel scrolls the page, as everywhere else; with Ctrl (or a pinch on a trackpad) it zooms the map */
+    var hint = $("[data-map-hint]", el), hints = 0, hintT = 0;
+    view.addEventListener("wheel", function (ev) {
+      if (!live) return;
+      if (!(ev.ctrlKey || ev.metaKey)) {
+        if (hint && hints < 2 && sMax > 1.01) { hints++; hint.hidden = false; clearTimeout(hintT); hintT = setTimeout(function () { hint.hidden = true; }, 1600); }
+        return;
+      }
+      ev.preventDefault();
+      if (hint) hint.hidden = true;
+      var r = view.getBoundingClientRect();
+      zoomAbout(s * Math.exp(-ev.deltaY * (ev.deltaMode === 1 ? 0.05 : 0.0025)), ev.clientX - r.left, ev.clientY - r.top);
+    }, { passive: false });
+    view.addEventListener("dblclick", function (ev) {
+      if (!live || (ev.target.closest && ev.target.closest("button, a"))) return;
+      var r = view.getBoundingClientRect(), g = aim(s * 2, ev.clientX - r.left, ev.clientY - r.top);
+      glide(g[0], g[1], g[2]);
+    });
+    view.addEventListener("keydown", function (ev) {
+      if (!live || ev.target !== view || ev.altKey || ev.ctrlKey || ev.metaKey) return;
+      var k = ev.key, step = 0.2 / s, w = bw * s, h = bh * s;
+      if (k === "+" || k === "=") glide(s * 1.6, cx, cy);
+      else if (k === "-" || k === "_") glide(s / 1.6, cx, cy);
+      else if (k === "0") glide(1, hx, hy);
+      /* an arrow key moves the map only while there is map left on that side; otherwise it is the page's */
+      else if (k === "ArrowLeft" && tx < -0.5) glide(s, cx - step, cy);
+      else if (k === "ArrowRight" && tx > vw - w + 0.5) glide(s, cx + step, cy);
+      else if (k === "ArrowUp" && ty < -0.5) glide(s, cx, cy - step);
+      else if (k === "ArrowDown" && ty > vh - h + 0.5) glide(s, cx, cy + step);
+      else return;
+      ev.preventDefault();
+    });
+    /* focus on a marker must never scroll the window's own box: the map moves instead */
+    view.addEventListener("scroll", function () { if (view.scrollLeft || view.scrollTop) { view.scrollLeft = 0; view.scrollTop = 0; } });
+    pinsEl.addEventListener("focusin", function (ev) { var p = ev.target.closest ? ev.target.closest(".pin[data-pin]") : null; if (p && live) reveal(p); });
+    if (zIn) zIn.addEventListener("click", function () { glide(s * 1.8, cx, cy); });
+    if (zOut) zOut.addEventListener("click", function () { glide(s / 1.8, cx, cy); });
+    if (zHome) zHome.addEventListener("click", function () { glide(1, hx, hy); });
+
+    /* Markers. Pointing at one with a mouse, or reaching it with the keyboard, shows its card and lights its
+       row in the list beside the map. Choosing it (a click, or a tap) keeps the card open; choosing it again,
+       a tap on the map itself, or Escape puts the card away. A finger never counts as pointing: on a touch
+       screen that state would stay behind after the tap. */
+    var rowOf = function (id) { return $('[data-near="' + id + '"]') || $('.place[data-place="' + id + '"]'); };
+    var choose = function (id) { pins.forEach(function (p) { p.setAttribute("aria-pressed", p.getAttribute("data-pin") === id ? "true" : "false"); }); };
+    /* a page that has a fuller list beside the map (the location page) answers the choice itself */
+    var say = function (from, id) { if (from.dispatchEvent(new CustomEvent("gd:pin", { bubbles: true, cancelable: true, detail: { id: id } }))) choose(id); };
+    var chosen = function () { return pins.filter(function (p) { return p.getAttribute("aria-pressed") === "true"; })[0]; };
+    function unchoose() { var p = chosen(); if (p) say(p, ""); return !!p; }
+    var point = function (p, on) {
+      var row = rowOf(p.getAttribute("data-pin"));
+      p.classList.toggle("is-over", on);
+      if (!on) p.classList.remove("is-shut");
+      if (row) row.classList.toggle("is-lit", on);
+      if (on) placeCard(p);
+    };
+    /* A card belongs to its marker, so the mouse can rest on it while it is read. It must not shut off the
+       markers it lies over, though: when the mouse, on a card, comes to where another marker is, that marker
+       takes over. */
+    pinsEl.addEventListener("pointermove", function (ev) {
+      var own = ev.pointerType !== "touch" && ev.target.closest && ev.target.closest(".pin__card") ? ev.target.closest(".pin") : null;
+      if (!own || own.classList.contains("is-docked")) return;
+      var vr = view.getBoundingClientRect(), mx = ev.clientX - vr.left, my = ev.clientY - vr.top;
+      var next = pins.filter(function (o) { var k = at(o); return o !== own && !o.disabled && Math.hypot(tx + k[0] * bw * s - mx, ty + k[1] * bh * s - my) < o.offsetWidth / 2 + 2; })[0];
+      if (next) { point(own, false); point(next, true); }
+    });
+    pins.forEach(function (p) {
+      var id = p.getAttribute("data-pin"), row = rowOf(id);
+      /* on a small map the card lies along an edge, where the mouse could not follow it: there it opens on a click, not on pointing */
+      p.addEventListener("pointerenter", function (ev) { if (ev.pointerType !== "touch" && wideEnough("43.75em")) point(p, true); });
+      p.addEventListener("pointerleave", function () { point(p, false); });
+      p.addEventListener("focus", function () { if (row) row.classList.add("is-lit"); placeCard(p); });
+      p.addEventListener("blur", function () { p.classList.remove("is-shut"); if (row) row.classList.remove("is-lit"); });
+      p.addEventListener("click", function () {
+        p.classList.remove("is-shut");
+        say(p, p.getAttribute("aria-pressed") === "true" ? "" : id);
+        placeCard(p);
+      });
+    });
+    var scope = el.closest("[data-explorer]") || el;
+    d.addEventListener("keydown", function (ev) {
+      if (ev.key !== "Escape" && ev.key !== "Esc") return;
+      var at2 = pins.filter(function (p) { return p.classList.contains("is-over") || p === d.activeElement; });
+      if (!at2.length && !scope.contains(ev.target)) return;
+      unchoose();
+      at2.forEach(function (p) { p.classList.add("is-shut"); });
+    });
+    var byId = function (id) { return pins.filter(function (x) { return x.getAttribute("data-pin") === id; })[0]; };
+    el.__map = {
+      reveal: function (id) { var p = byId(id); if (p && live) reveal(p); },
+      choose: function (id) { choose(id); var p = byId(id); if (p) placeCard(p); },
+      /* a row in a list beside the map lights its marker: the card it shows is placed like any other */
+      light: function (id, on) { var p = byId(id); if (!p) return; p.classList.toggle("is-lit", on); if (on) placeCard(p); },
+      place: function (id) { var p = byId(id); if (p) placeCard(p); }
+    };
+
+    /* ---- satellite view ---- */
+    var satUrl = el.getAttribute("data-sat"), tilesEl = $("[data-tiles]", el);
+    if (satUrl && tilesEl) {
+      var B = (el.getAttribute("data-bounds") || "").split(",").map(Number); /* west, south, east, north */
+      var namesImg = $("[data-names-img]", el), failBox = $("[data-sat-fail]", el), creditSat = $("[data-credit-sat]", el);
+      var zMin = num("data-sat-min", 16), zMax = num("data-sat-max", 18), layer = "map", levels = {}, got = 0, lost = 0, lastDraw = 0;
+      var colOf = function (lon, z) { return (lon + 180) / 360 * Math.pow(2, z); };
+      var rowAt = function (lat, z) { var r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z); };
+      var draw = function (atRest) {
+        if (layer !== "sat") return;
+        var now = Date.now();
+        if (!atRest && now - lastDraw < 220) return;
+        lastDraw = now;
+        /* the coarsest level whose squares are fine enough for the size the map is shown at */
+        var need = bw * s * Math.min(window.devicePixelRatio || 1, 1.5) * 0.8, z = zMin;
+        while (z < zMax && (colOf(B[2], z) - colOf(B[0], z)) * 256 < need) z++;
+        var X0 = colOf(B[0], z), X1 = colOf(B[2], z), Y0 = rowAt(B[3], z), Y1 = rowAt(B[1], z), w = bw * s, h = bh * s;
+        var i0 = Math.floor(X0 + (-tx / w) * (X1 - X0)), i1 = Math.floor(X0 + ((vw - tx) / w) * (X1 - X0) - 1e-9);
+        var j0 = Math.floor(Y0 + (-ty / h) * (Y1 - Y0)), j1 = Math.floor(Y0 + ((vh - ty) / h) * (Y1 - Y0) - 1e-9);
+        var lv = levels[z];
+        if (!lv) { lv = levels[z] = { box: d.createElement("div"), have: {} }; lv.box.style.cssText = "position:absolute;inset:0;z-index:" + z; tilesEl.appendChild(lv.box); }
+        for (var i = i0; i <= i1; i++) for (var j = j0; j <= j1; j++) (function (i, j) {
+          var key = i + "/" + j;
+          if (lv.have[key]) return;
+          lv.have[key] = 1;
+          var t = new Image();
+          t.alt = ""; t.decoding = "async"; t.referrerPolicy = "no-referrer"; t.draggable = false;
+          t.style.left = ((i - X0) / (X1 - X0) * 100).toFixed(4) + "%"; t.style.top = ((j - Y0) / (Y1 - Y0) * 100).toFixed(4) + "%";
+          /* a hair wider than its square, so no seam shows between neighbours */
+          t.style.width = "calc(" + (100 / (X1 - X0)).toFixed(4) + "% + 0.5px)"; t.style.height = "calc(" + (100 / (Y1 - Y0)).toFixed(4) + "% + 0.5px)";
+          t.onload = function () { got++; t.classList.add("is-in"); };
+          t.onerror = function () { lost++; delete lv.have[key]; if (t.parentNode) t.parentNode.removeChild(t); if (failBox && layer === "sat" && !got && lost >= 3) failBox.hidden = false; };
+          t.src = satUrl.replace("{z}", z).replace("{x}", i).replace("{y}", j);
+          lv.box.appendChild(t);
+        })(i, j);
+        /* keep this level and the coarsest one beneath it; let go of the rest */
+        if (atRest) Object.keys(levels).forEach(function (k) { if (+k !== z && +k !== zMin) { tilesEl.removeChild(levels[k].box); delete levels[k]; } });
+      };
+      afterMove.push(draw);
+      var setLayer = function (next, from) {
+        layer = next;
+        var sat = next === "sat";
+        el.classList.toggle("is-sat", sat);
+        $$("[data-layer][aria-pressed]", el).forEach(function (b2) { b2.setAttribute("aria-pressed", b2.getAttribute("data-layer") === next ? "true" : "false"); });
+        tilesEl.hidden = !sat;
+        if (namesImg) { namesImg.hidden = !sat; if (sat && !namesImg.getAttribute("src")) namesImg.src = el.getAttribute("data-names"); }
+        if (creditSat) creditSat.hidden = !sat;
+        if (failBox) failBox.hidden = true;
+        if (sat) { got = 0; lost = 0; draw(true); }
+        /* the "Back to the map" button has just gone: hand the keyboard to the view switch */
+        if (from && !from.hasAttribute("aria-pressed")) { var seg = $('[data-layer="' + next + '"][aria-pressed]', el); if (seg) seg.focus(); }
+      };
+      $$("[data-layer]", el).forEach(function (b2) { b2.addEventListener("click", function () { setLayer(b2.getAttribute("data-layer"), b2); }); });
+    }
+
+    start();
+    /* once the page has been scrolled, an open card is set again inside the part of the map that can now be seen */
+    var scrollT = 0;
+    addEventListener("scroll", function () { clearTimeout(scrollT); scrollT = setTimeout(function () { if (live) pins.forEach(function (p) { if (shows(p)) placeCard(p); }); }, 140); }, { passive: true });
+    addEventListener("resize", function () { if (live) { if (measure()) apply(); } else start(); });
+    addEventListener("load", function () { if (live) { if (measure()) apply(); } else start(); });
+  });
+
+  /* ==================================================================== */
+  /* Location explorer: the list beside the map                            */
   /* ==================================================================== */
   var ex = $("[data-explorer]");
   if (ex) {
     var chips = $$("[data-filter]", ex), rows = $$(".place", ex), pins = $$("[data-pin]", ex), countEl = $("[data-count]", ex);
+    var exMap = ($("[data-map]", ex) || {}).__map;
     var filterTo = function (kind) {
       var n = 0;
       chips.forEach(function (ch) { ch.setAttribute("aria-pressed", ch.getAttribute("data-filter") === kind ? "true" : "false"); });
@@ -657,11 +1211,6 @@
       });
       if (countEl) countEl.textContent = fmt(T.showing, { n: n });
     };
-    var panTo = function (pin) {
-      var pan = pin.closest ? pin.closest("[data-pan]") : null;
-      if (!pan || pan.scrollWidth - pan.clientWidth < 4) return;
-      pan.scrollTo({ left: Math.max(0, pin.offsetLeft - pan.clientWidth / 2), behavior: reduce ? "auto" : "smooth" });
-    };
     var choose = function (id, from) {
       rows.forEach(function (r) {
         var btn = $(".place__btn", r), more = $(".place__more", r);
@@ -671,40 +1220,38 @@
         more.hidden = !on;
         if (on && from === "pin") {
           if (r.hidden) filterTo("all");
-          btn.focus({ preventScroll: true });
-          var rr = r.getBoundingClientRect();
-          if (rr.top < 90 || rr.bottom > innerHeight - 20) r.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
+          /* with the list beside the map, go to the row; with the list below it (a phone), stay on the map,
+             where the marker now shows its card, and leave the row open for when the visitor scrolls down */
+          if (wideEnough("62.5em")) {
+            btn.focus({ preventScroll: true });
+            var rr = r.getBoundingClientRect();
+            if (rr.top < 90 || rr.bottom > innerHeight - 20) r.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
+          }
         }
       });
       pins.forEach(function (p) {
         var row = rows.filter(function (r) { return r.getAttribute("data-place") === p.getAttribute("data-pin"); })[0];
         var on = !!(row && $(".place__btn", row).getAttribute("aria-expanded") === "true");
         p.setAttribute("aria-pressed", on ? "true" : "false");
-        if (on && from === "list") panTo(p);
+        if (on && from === "list" && exMap) exMap.reveal(p.getAttribute("data-pin"));
+        if (on && exMap) exMap.place(p.getAttribute("data-pin"));
       });
     };
     chips.forEach(function (ch) { ch.addEventListener("click", function () { filterTo(ch.getAttribute("data-filter")); }); });
-    rows.forEach(function (r) { $(".place__btn", r).addEventListener("click", function () { choose(r.getAttribute("data-place"), "list"); }); });
-    pins.forEach(function (p) { if (p.tagName === "BUTTON") p.addEventListener("click", function () { choose(p.getAttribute("data-pin"), "pin"); }); });
+    rows.forEach(function (r) {
+      var pin = pins.filter(function (p) { return p.getAttribute("data-pin") === r.getAttribute("data-place"); })[0];
+      $(".place__btn", r).addEventListener("click", function () { choose(r.getAttribute("data-place"), "list"); });
+      /* pointing at a row lights its marker, so the two can be matched without numbers */
+      if (pin) {
+        var light = function (on) { return function () { if (exMap) exMap.light(pin.getAttribute("data-pin"), on); else pin.classList.toggle("is-lit", on); }; };
+        r.addEventListener("pointerenter", function (ev) { if (ev.pointerType !== "touch") light(true)(); }); r.addEventListener("pointerleave", light(false));
+        r.addEventListener("focusin", light(true)); r.addEventListener("focusout", light(false));
+      }
+    });
+    ex.addEventListener("gd:pin", function (ev) { ev.preventDefault(); choose(ev.detail.id, "pin"); });
     rows.forEach(function (r) { $(".place__more", r).hidden = true; $(".place__btn", r).setAttribute("aria-expanded", "false"); });
     filterTo("all");
   }
-
-  $$("[data-pan]").forEach(function (pan) {
-    var fit = function () {
-      var over = pan.scrollWidth - pan.clientWidth;
-      if (over > 4) {
-        pan.tabIndex = 0; pan.setAttribute("role", "group"); pan.setAttribute("aria-label", pan.getAttribute("data-label") || "");
-        if (!pan.hasAttribute("data-centred")) {
-          pan.scrollLeft = Math.max(0, Math.min(over, pan.scrollWidth * (parseFloat(pan.getAttribute("data-cx")) || 50) / 100 - pan.clientWidth / 2));
-          pan.setAttribute("data-centred", "");
-        }
-      } else { pan.removeAttribute("tabindex"); pan.removeAttribute("role"); pan.removeAttribute("aria-label"); }
-    };
-    fit();
-    addEventListener("resize", fit);
-    addEventListener("load", fit);
-  });
 
   /* the comparison box is a tab stop only while it really scrolls */
   $$(".table-scroll").forEach(function (box) {
@@ -718,13 +1265,14 @@
     addEventListener("load", fit);
   });
 
-  /* near-by rows on the home page light their pin */
+  /* near-by rows on the home page: pointing at one lights its marker and shows its card; choosing one keeps it */
   $$("[data-near]").forEach(function (li) {
-    var pin = $('[data-pin="' + li.getAttribute("data-near") + '"]');
+    var id = li.getAttribute("data-near"), pin = $('.pin[data-pin="' + id + '"]');
     if (!pin) return;
-    var on = function () { pin.classList.add("is-lit"); }, off = function () { pin.classList.remove("is-lit"); };
-    li.addEventListener("mouseenter", on); li.addEventListener("mouseleave", off);
-    li.addEventListener("focusin", on); li.addEventListener("focusout", off);
+    var api = (pin.closest("[data-map]") || {}).__map;
+    var on = function () { if (api) api.light(id, true); else pin.classList.add("is-lit"); }, off = function () { if (api) api.light(id, false); else pin.classList.remove("is-lit"); };
+    li.addEventListener("pointerenter", function (ev) { if (ev.pointerType !== "touch") on(); }); li.addEventListener("pointerleave", off);
+    li.addEventListener("click", function () { if (!api) return; api.choose(pin.getAttribute("aria-pressed") === "true" ? "" : id); api.reveal(id); });
   });
 
   /* copy the address */
@@ -782,7 +1330,7 @@
   if (enq) {
     var outBox = $("[data-enquiry-out]"), pre = $("[data-enquiry-text]"), copyBtn = $("[data-enquiry-copy]"), mailBtn = $("[data-enquiry-mail]"), eStatus = $("[data-enquiry-status]");
     var L = JSON.parse(enq.getAttribute("data-labels"));
-    var mailLong = false;
+    var mailLong = false, longNote = $("[data-enquiry-long]");
     var val = function (n) { var el = enq.elements[n]; return el ? String(el.value || "").trim() : ""; };
     var hintDates = function () { ["arrive", "depart"].forEach(function (n) { var el = enq.elements[n]; if (el) el.classList.toggle("is-empty", !el.value); }); };
     enq.addEventListener("input", hintDates); enq.addEventListener("change", hintDates);
@@ -793,8 +1341,8 @@
       if (text) el.setAttribute("aria-invalid", "true"); else el.removeAttribute("aria-invalid");
       if (err) err.textContent = text || "";
     };
-    enq.addEventListener("submit", function (ev) {
-      ev.preventDefault();
+    var prepare = function (ev) {
+      if (ev) ev.preventDefault();
       var first = null, bad = function (n, t) { setErr(n, t); if (!first) first = enq.elements[n]; };
       ["email", "arrive", "depart", "message"].forEach(function (n) { setErr(n, ""); });
       var email = val("email"), a = val("arrive"), b = val("depart"), msg = val("message");
@@ -827,23 +1375,66 @@
       var mailBase = "mailto:" + enq.getAttribute("data-to") + "?subject=" + subject;
       mailLong = mailBase.length + 6 + body.length > 1900;
       mailBtn.href = mailLong ? mailBase : mailBase + "&body=" + body;
+      /* said before the email app is opened, not after: a long message travels by copy and paste */
+      if (longNote) longNote.hidden = !mailLong;
       eStatus.className = "status"; eStatus.textContent = "";
       outBox.hidden = false;
       outBox.focus();
+    };
+    /* the form has no submit button and no address to submit to: preparing is a button press, or Enter in a one-line field */
+    enq.addEventListener("submit", prepare);
+    var prepBtn = $("[data-enquiry-prepare]", enq);
+    if (prepBtn) prepBtn.addEventListener("click", prepare);
+    enq.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter" && ev.target && ev.target.tagName === "INPUT" && ev.target.type !== "radio") prepare(ev);
     });
     /* an edited form withdraws the earlier message, so what is copied is always what is shown in the form */
-    enq.addEventListener("input", function () { outBox.hidden = true; eStatus.textContent = ""; });
+    var withdraw = function (ev) {
+      /* typing reports itself through "input"; "change" is listened to only for the controls that may not (a select, a radio, a date) */
+      if (ev && ev.type === "change" && ev.target && ev.target.tagName !== "SELECT" && !/^(radio|date)$/.test(ev.target.type || "")) return;
+      outBox.hidden = true; eStatus.textContent = "";
+    };
+    enq.addEventListener("input", withdraw); enq.addEventListener("change", withdraw);
+    var selectText = function () {
+      try { var r = d.createRange(); r.selectNodeContents(pre); var sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); pre.focus(); } catch (e) {}
+    };
     copyBtn.addEventListener("click", function () {
       var ok = function () { eStatus.className = "status is-ok"; eStatus.textContent = L.copied; };
-      var bad = function () { eStatus.className = "status is-error"; eStatus.textContent = L.copyFailed; };
+      /* no clipboard, or permission refused: the text is selected so the keyboard or a long press can copy it */
+      var bad = function () { selectText(); eStatus.className = "status is-error"; eStatus.textContent = L.copyFailed; };
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(pre.textContent).then(ok, bad); else bad();
     });
     mailBtn.addEventListener("click", function () { eStatus.className = "status"; eStatus.textContent = mailLong ? L.mailLong : L.mailHint; });
+    /* each subject suggests what the hotel will need to know */
+    var prompt = $("[data-enquiry-prompt]");
+    var paintPrompt = function () {
+      if (!prompt) return;
+      var k = (enq.querySelector('input[name="intent"]:checked') || {}).value || "";
+      var text = (L.prompts || {})[k] || "";
+      prompt.textContent = text; prompt.hidden = !text;
+    };
+    $$('input[name="intent"]', enq).forEach(function (r) { r.addEventListener("change", paintPrompt); });
     var pre0 = new URLSearchParams(location.search).get("about");
     if (pre0 && enq.elements.intent) $$('input[name="intent"]', enq).forEach(function (r) { if (r.value === pre0) r.checked = true; });
     var su = new URLSearchParams(location.search).get("suite");
     if (su && enq.elements.suite) $$("option", enq.elements.suite).forEach(function (o) { if (o.getAttribute("data-slug") === su) enq.elements.suite.value = o.value; });
-    if (stay.in && stay.out && enq.elements.arrive && !enq.elements.arrive.value) { enq.elements.arrive.value = stay.in; enq.elements.depart.value = stay.out; }
+    /* a stay the visitor set in a planner is offered here, editable: dates, and who is travelling */
+    if (stayStored) {
+      if (stay.in && stay.out && enq.elements.arrive && !enq.elements.arrive.value) { enq.elements.arrive.value = stay.in; enq.elements.depart.value = stay.out; }
+      var partyEl = enq.elements.party, partyNote = $("[data-party-note]");
+      if (partyEl && !partyEl.value) {
+        partyEl.value = guestsText(stay.adults, stay.kids);
+        if (partyNote) partyNote.hidden = false;
+      }
+    }
+    paintPrompt();
     hintDates();
+    /* typed words are never stored, so changing language would lose them: say so first */
+    var typed = function () { return ["name", "email", "phone", "message"].some(function (n) { return val(n) !== ""; }); };
+    $$("[data-lang-switch]").forEach(function (a) {
+      a.addEventListener("click", function (ev) {
+        if (typed() && !window.confirm(L.leaveDraft)) { ev.preventDefault(); ev.stopImmediatePropagation(); }
+      }, true);
+    });
   }
 })();

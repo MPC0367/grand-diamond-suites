@@ -2,8 +2,11 @@
    c.lang, c.other, c.l(l10n), c.t(key, vars), c.href(path), c.altHref,
    c.asset(path), c.media(id), c.page, c.config, c.hotel */
 import { html, raw, e, attrs, cx } from "../lib/html.mjs";
-import { icon, O2_MARK_PATH } from "./icons.mjs";
+import { icon, O2_MARK_PATH, KIND_ICON } from "./icons.mjs";
 import { suiteList } from "../data/suites.mjs";
+import { flagFor } from "../data/verification.mjs";
+import { locationPage } from "../content/pages.mjs";
+import { metresBetween } from "../data/places.mjs";
 
 /* ---------- pictures ---------- */
 
@@ -123,17 +126,17 @@ export function planner(c, { id, compact = false, suite = null } = {}) {
           <label for="${id}-age${i}">${c.t("childAge", { i })}</label>
           <select id="${id}-age${i}" data-age aria-describedby="${id}-msg">${ageOpts}</select>
         </div>`);
-  return html`<div class="planner-block">
+  /* an enquiry opened from a planner is told what it is about; the stay itself travels in the browser's session, never in the address */
+  const ask = (about) => `${c.href("contact/")}?about=${about}${suite ? `&suite=${suite.slug}` : ""}`;
+  const dateField = (key, attr) => html`<div class="field field--date">
+          <label for="${id}-${key}">${c.t(key === "in" ? "checkin" : "checkout")}</label>
+          <span class="datebox"><input type="date" id="${id}-${key}" ${raw(attr)} autocomplete="off" aria-describedby="${id}-msg"><span class="datebox__empty" aria-hidden="true">${c.t("dateHint")}</span></span>
+        </div>`;
+  return html`<div class="planner-block" data-planner-block${suite ? raw(` data-suite="${e(suite.slug)}" data-suite-name="${e(c.l(suite.name))}" data-suite-max="${suite.occupancy || ""}"`) : ""}>
     <form class="${cx("planner", compact && "planner--compact")}" data-planner novalidate autocomplete="off" action="${bookingUrl(c)}" method="get" target="_blank" rel="noopener noreferrer"${suite && suite.bookingRoomId ? raw(` data-room-type="${e(suite.bookingRoomId)}"`) : ""} aria-label="${c.t("planStay")}">
       <div class="planner__fields">
-        <div class="field">
-          <label for="${id}-in">${c.t("checkin")}</label>
-          <input type="date" id="${id}-in" data-in autocomplete="off" data-hint="${c.t("dateHint")}" aria-describedby="${id}-msg">
-        </div>
-        <div class="field">
-          <label for="${id}-out">${c.t("checkout")}</label>
-          <input type="date" id="${id}-out" data-out autocomplete="off" data-hint="${c.t("dateHint")}" aria-describedby="${id}-msg">
-        </div>
+        ${dateField("in", "data-in")}
+        ${dateField("out", "data-out")}
         <div class="field field--adults">
           <label for="${id}-ad">${c.t("adults")}</label>
           <select id="${id}-ad" data-adults>${opts}</select>
@@ -149,10 +152,26 @@ export function planner(c, { id, compact = false, suite = null } = {}) {
       </div>
     </form>
     <p class="planner__msg is-info" id="${id}-msg" data-msg role="status" aria-live="polite"></p>
+    <div class="planner__recover js-only" data-recover hidden>
+      <div class="planner__recover-actions">
+        <a class="btn btn--ink btn--sm" data-recover-book href="${bookingUrl(c)}" target="_blank" rel="noopener noreferrer">${c.t("recoverBook")}${icon("out")}${newTab(c)}</a>
+        <a class="btn btn--line btn--sm" data-recover-ask data-ask-long="${ask("long")}" data-ask-group="${ask("family")}" data-label-long="${c.t("recoverAskLong")}" data-label-group="${c.t("recoverAskGroup")}" href="${ask("long")}"><span data-recover-ask-label>${c.t("recoverAskLong")}</span>${icon("arrow")}</a>
+      </div>
+      <p class="planner__recover-note" data-recover-note></p>
+    </div>
+    <div class="handoff js-only" role="group" aria-label="${c.t("handoffLabel")}">
+      <dl>
+        <div><dt>${c.t("handoffDates")}</dt><dd><span data-h-dates>${c.t("notSelected")}</span><button type="button" class="textbtn" data-clear-dates hidden>${c.t("clearDates")}</button></dd></div>
+        <div><dt>${c.t("handoffGuests")}</dt><dd data-h-guests>${c.t("adultsMany", { n: 2 })}</dd></div>
+        ${suite ? html`<div><dt>${c.t("handoffSuite")}</dt><dd>${c.l(suite.name)}<small>${c.t("handoffSuiteAgain")}</small></dd></div>` : ""}
+      </dl>
+    </div>
+    <p class="sr-only" role="status" aria-live="polite" data-live></p>
+    ${suite ? html`<p class="planner__fit js-only" data-fit hidden></p>` : ""}
     <div class="planner__plain">
       <a class="btn btn--ink" href="${bookingUrl(c)}" target="_blank" rel="noopener noreferrer">${c.t("checkAvailability")}${icon("out")}${newTab(c)}</a>
     </div>
-    <p class="planner__note"><span class="js-only">${suite ? c.t("plannerSuite", { suite: c.l(suite.name) }) : c.t("plannerNote")}</span><span class="nojs-only">${c.t("plannerPlain")}</span></p>
+    <p class="planner__note"><span class="js-only">${c.t("plannerNote")} ${c.t("largerParty", { n: b.maxGuests })} <a class="link" data-larger-party href="${ask("family")}">${c.t("largerPartyAsk")}</a></span><span class="nojs-only">${c.t("plannerPlain")}</span></p>
   </div>`;
 }
 
@@ -167,9 +186,11 @@ export function plannerDialog(c) {
   </dialog>`;
 }
 
-/** Opens the planner dialog; without JavaScript it is a plain link to the booking page. */
+/** Opens the stay planner in the page, and is worded as that ("Check dates"). Without JavaScript it is a
+    plain link to the hotel's booking page, and is worded as that instead. Only the planner's own button,
+    which really leaves for the booking page, says "Check availability". */
 export function bookButton(c, { cls = "btn btn--ink", label = null, iconName = null } = {}) {
-  return html`<a class="${cls}" href="${bookingUrl(c)}" target="_blank" rel="noopener noreferrer" data-open-planner>${label || c.t("checkAvailability")}${iconName ? icon(iconName) : ""}${newTabNote(c)}</a>`;
+  return html`<a class="${cls}" href="${bookingUrl(c)}" target="_blank" rel="noopener noreferrer" data-open-planner><span class="js-only">${label || c.t("checkDates")}</span><span class="nojs-only">${c.t("checkAvailability")}</span>${iconName ? icon(iconName) : ""}${newTabNote(c)}</a>`;
 }
 
 /* ---------- header, menu, footer ---------- */
@@ -199,7 +220,7 @@ function langSwitch(c, idSuffix = "") {
 
 export function conceptStrip(c) {
   if (c.config.mode !== "preview") return "";
-  return html`<div class="concept-strip" role="note"><div class="wrap"><span><strong>${c.t("conceptStrip")}</strong></span><a href="${c.hotel.links.official[c.lang]}" target="_blank" rel="noopener">${c.t("conceptStripLink")}${newTab(c)}</a></div></div>`;
+  return html`<aside class="concept-strip" aria-label="${c.t("conceptLabel")}"><div class="wrap"><span><strong>${c.t("conceptStrip")}</strong></span><a href="${c.hotel.links.official[c.lang]}" target="_blank" rel="noopener">${c.t("conceptStripLink")}${newTab(c)}</a></div></aside>`;
 }
 
 export function header(c) {
@@ -221,7 +242,7 @@ export function header(c) {
       </nav>
       <div class="header-tools">
         ${langSwitch(c)}
-        ${bookButton(c, { cls: "btn btn--ink btn--sm header-cta", label: c.t("bookSuite") })}
+        ${bookButton(c, { cls: "btn btn--ink btn--sm header-cta" })}
         <button type="button" class="menu-btn js-only" aria-haspopup="dialog" aria-controls="menu" data-open-menu>${c.t("menu")}<span class="menu-btn__bars" aria-hidden="true"></span></button>
         <a class="menu-btn nojs-only" href="#footer-nav">${c.t("menu")}<span class="menu-btn__bars" aria-hidden="true"></span></a>
       </div>
@@ -305,6 +326,13 @@ export function viewerDialog(c) {
     </div>
     <div class="viewer__stage">
       <img data-img alt="" decoding="async">
+      <div class="viewer__fail" data-fail role="alert" hidden>
+        <p>${c.t("photoFailed")}</p>
+        <div class="viewer__fail-actions">
+          <button type="button" class="btn btn--line-light btn--sm" data-retry>${c.t("tryAgain")}</button>
+          <a class="link" data-file target="_blank" rel="noopener">${c.t("openImage")}${newTab(c)}</a>
+        </div>
+      </div>
       <button type="button" class="icon-btn viewer__nav viewer__nav--prev" data-prev aria-label="${c.t("prevPhoto")}">${icon("prev")}</button>
       <button type="button" class="icon-btn viewer__nav viewer__nav--next" data-next aria-label="${c.t("nextPhoto")}">${icon("next")}</button>
     </div>
@@ -314,17 +342,24 @@ export function viewerDialog(c) {
 
 /* ---------- suite pieces ---------- */
 
+/** A note from the verification queue, printed beside the fact it qualifies ("The booking page lists 200 sq m").
+    It comes from one list (src/data/verification.mjs) and leaves every page when the hotel settles the point. */
+export function flag(c, s, field) {
+  const f = flagFor(s.slug, field);
+  return f ? html`<small class="flag"><span class="sr-only">${c.t("flagLabel")}: </span>${c.l(f)}</small>` : "";
+}
+
 /** Specification rows shared by the selector and the suite page. */
 export function suiteSpecs(c, s) {
-  const row = (label, value, small = null) => html`<div><dt>${label}</dt><dd>${value}${small ? html`<small>${small}</small>` : ""}</dd></div>`;
+  const row = (field, label, value, small = null) => html`<div><dt>${label}</dt><dd>${value}${small ? html`<small>${small}</small>` : ""}${flag(c, s, field)}</dd></div>`;
   return html`<dl class="specs">
-    ${row(c.t("area"), areaValue(c, s))}
-    ${row(c.t("beds"), c.l(s.beds))}
-    ${row(c.t("bathrooms"), s.bathrooms.count ? String(s.bathrooms.count) : (s.bathrooms.detail ? c.l(s.bathrooms.detail) : unlisted(c)), s.bathrooms.count && s.bathrooms.detail ? c.l(s.bathrooms.detail) : null)}
-    ${row(c.t("living"), s.living ? c.l(s.living) : unlisted(c))}
-    ${row(c.t("kitchen"), s.kitchen ? c.l(s.kitchen) : unlisted(c))}
-    ${row(c.t("outdoor"), s.outdoor ? c.l(s.outdoor) : unlisted(c))}
-    ${row(c.t("occupancy"), s.occupancy ? c.t("occupancyValue", { n: s.occupancy }) : unlisted(c), s.occupancy ? c.t("occupancySource") : null)}
+    ${row("area", c.t("area"), areaValue(c, s))}
+    ${row("beds", c.t("beds"), c.l(s.beds))}
+    ${row("bathrooms", c.t("bathrooms"), s.bathrooms.count ? String(s.bathrooms.count) : (s.bathrooms.detail ? c.l(s.bathrooms.detail) : unlisted(c)), s.bathrooms.count && s.bathrooms.detail ? c.l(s.bathrooms.detail) : null)}
+    ${row("living", c.t("living"), s.living ? c.l(s.living) : unlisted(c))}
+    ${row("kitchen", c.t("kitchen"), s.kitchen ? c.l(s.kitchen) : unlisted(c))}
+    ${row("outdoor", c.t("outdoor"), s.outdoor ? c.l(s.outdoor) : unlisted(c))}
+    ${row("occupancy", c.t("occupancy"), s.occupancy ? c.t("occupancyValue", { n: s.occupancy }) : unlisted(c), s.occupancy ? c.t("occupancySource") : null)}
   </dl>`;
 }
 
@@ -356,10 +391,10 @@ export function finder(c, { idPrefix = "f", headingLevel = 3, eagerFirst = true 
           </div>
           <div class="finder__detail">
             <div class="finder__sum">
-              <p class="lead" style="font-size:1.0625rem;color:var(--ink-2)">${c.l(s.summary)}</p>
+              <p class="finder__line">${c.l(s.line)}</p>
               <div class="finder__actions">
                 <a class="btn btn--ink" href="${c.href(`suites/${s.slug}/`)}">${c.t("exploreSuite", { suite: c.l(s.name) })}${icon("arrow")}</a>
-                ${bookButton(c, { cls: "btn btn--line", label: c.t("checkDates") })}
+                <a class="btn btn--line" href="${c.href("suites/compare/")}?a=${s.slug}&amp;b=${s.compareWith[0].slug}">${c.t("compareWith", { suite: c.l(suiteList.find((x) => x.slug === s.compareWith[0].slug).name) })}</a>
               </div>
             </div>
             ${suiteSpecs(c, s)}
@@ -383,37 +418,65 @@ export function faqList(c, items) {
 
 /* ---------- map ---------- */
 
-/** Static street map with pins placed from coordinates at build time.
-    The drawing is this site's own render of OpenStreetMap data (tools/map.mjs). */
-export function mapPlate(c, places, { interactive = true } = {}) {
+/** The neighbourhood map: this site's own drawing of OpenStreetMap data (tools/map.mjs), with a marker for
+    each place set from its coordinates at build time. The markers carry an icon for the kind of place, never
+    a number, so they do not read as stops on a route. As plain HTML it is a picture with markers that name
+    themselves on hover and focus. The script makes it a map that moves and zooms, and adds the choice of a
+    satellite view, whose images come from the service named in the site's settings. */
+export function mapPlate(c, places) {
+  c.flags.map = true;
   const map = c.map;
   const files = map.files[c.lang];
+  const sat = c.config.map.satellite;
   const pos = (lat, lon) => {
     const [x, y] = map.project(lat, lon);
     return `--x:${x.toFixed(2)};--y:${y.toFixed(2)}`;
   };
   const hp = c.hotel.coords;
-  const [hx] = map.project(hp.lat, hp.lon);
-  return html`<div class="mapplate" data-map>
-    <div class="mapplate__pan" data-pan data-cx="${hx.toFixed(2)}" data-label="${c.t("mapPan")}">
-      <div class="mapplate__canvas">
-        <picture>
-          <source type="image/webp" srcset="${c.asset("img/" + files.webp[0])} 960w, ${c.asset("img/" + files.webp[1])} 1600w" sizes="(min-width: 1000px) 56vw, (min-width: 700px) 92vw, 680px">
-          <img class="mapplate__img" src="${c.asset("img/" + files.jpg)}" width="${map.width}" height="${map.height}" alt="${c.t("mapAlt")}" loading="lazy" decoding="async">
-        </picture>
-        <div class="mapplate__pins">
+  const [hx, hy] = map.project(hp.lat, hp.lon);
+  const b = map.bounds;
+  /* the address pattern for one square of satellite imagery, with the studio's key if one is set */
+  const tiles = sat.on ? sat.url + (sat.token ? (sat.url.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(sat.token) : "") : "";
+  const osm = c.lang === "th"
+    ? 'ข้อมูลแผนที่ © ผู้ร่วมพัฒนา <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap<span class="sr-only"> (เปิดในแท็บใหม่)</span></a>'
+    : 'Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap<span class="sr-only"> (opens in a new tab)</span></a> contributors';
+  return html`<div class="mapplate" data-map data-ratio="${(map.width / map.height).toFixed(4)}" data-ground="${Math.round(map.groundWidth)}" data-hx="${(hx / 100).toFixed(4)}" data-hy="${(hy / 100).toFixed(4)}" data-mid="${c.asset("img/" + files.webp[1])}" data-large="${c.asset("img/" + files.large)}"${sat.on ? raw(` data-bounds="${b.west},${b.south},${b.east},${b.north}" data-sat="${e(tiles)}" data-sat-min="${sat.minZoom}" data-sat-max="${sat.maxZoom}" data-names="${e(c.asset("img/" + files.names))}"`) : ""}>
+    <div class="mapplate__view" data-view data-label="${c.t("mapPan")}">
+      <div class="mapplate__stage" data-map-stage>
+        <div class="mapplate__raster" data-raster>
+          <picture>
+            <source type="image/webp" srcset="${c.asset("img/" + files.webp[0])} 960w, ${c.asset("img/" + files.webp[1])} 1600w" sizes="(min-width: 1000px) 56vw, (min-width: 700px) 92vw, 680px">
+            <img class="mapplate__img" src="${c.asset("img/" + files.jpg)}" width="${map.width}" height="${map.height}" alt="${c.t("mapAlt")}" loading="lazy" decoding="async">
+          </picture>
+          ${sat.on ? html`<div class="mapplate__tiles" data-tiles hidden></div><img class="mapplate__names" data-names-img width="${map.width * 2}" height="${map.height * 2}" alt="" hidden>` : ""}
+        </div>
+        <div class="mapplate__pins" data-pins>
           <span class="pin pin--hotel" style="${pos(hp.lat, hp.lon)}" aria-hidden="true"></span>
           <span class="pin-label" style="${pos(hp.lat, hp.lon)}" aria-hidden="true">${c.t("hotelPin")}</span>
-          ${places.map((p, i) => interactive
-            ? html`<button type="button" class="pin" style="${pos(p.lat, p.lon)}" data-pin="${p.id}" data-kind="${p.kind}" aria-pressed="false" aria-label="${i + 1}. ${c.l(p.name)}">${i + 1}</button>`
-            : html`<span class="pin" style="${pos(p.lat, p.lon)}" data-pin="${p.id}" aria-hidden="true">${i + 1}</span>`)}
+          ${places.map((p) => {
+            /* The card says what the icon means (the kind of place) and what the place is. It shows on hover,
+               on keyboard focus and when the marker is chosen, which on a touch screen means tapped. A screen
+               reader gets the same from the marker's name and description. */
+            const kind = c.l(locationPage.kinds[p.kind]);
+            const far = c.t("pinDistance", { d: distText(c, metresBetween(c.hotel.coords, p)) }).replace(/^[a-z]/, (ch) => ch.toUpperCase());
+            return html`<button type="button" class="pin" style="${pos(p.lat, p.lon)}" data-pin="${p.id}" data-kind="${p.kind}" aria-pressed="false" aria-label="${c.l(p.name)}, ${kind}" aria-describedby="pin-${p.id}-about">${icon(KIND_ICON[p.kind])}<span class="pin__card" aria-hidden="true"><span class="pin__kind">${icon(KIND_ICON[p.kind])}${kind}</span><span class="pin__name">${c.l(p.name)}</span><span class="pin__about" id="pin-${p.id}-about"><span class="pin__what">${c.l(p.brief)}</span> <span class="pin__far">${far}</span></span><span class="pin__x">${icon("close")}</span></span></button>`;
+          })}
         </div>
       </div>
+      <p class="mapplate__hint" data-map-hint aria-hidden="true" hidden>${c.t("mapHintWheel")}</p>
+      ${sat.on ? html`<div class="mapplate__fail" data-sat-fail role="alert" hidden><p>${c.t("satFailed")}</p><button type="button" class="btn btn--paper btn--sm" data-layer="map">${c.t("backToMap")}</button></div>` : ""}
     </div>
-    <p class="mapplate__credit">${raw(c.lang === "th"
-      ? 'ข้อมูลแผนที่ © ผู้ร่วมพัฒนา <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap<span class="sr-only"> (เปิดในแท็บใหม่)</span></a>'
-      : 'Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap<span class="sr-only"> (opens in a new tab)</span></a> contributors')}</p>
-  </div>`;
+    <div class="mapplate__tools js-only">
+      ${sat.on ? html`<div class="mapseg" role="group" aria-label="${c.t("mapViewLabel")}"><button type="button" data-layer="map" aria-pressed="true">${c.t("mapView")}</button><button type="button" data-layer="sat" aria-pressed="false">${c.t("satView")}</button></div>` : ""}
+      <div class="mapzoom" role="group" aria-label="${c.t("zoomLabel")}">
+        <button type="button" data-zoom="in" aria-label="${c.t("zoomIn")}">${icon("plus")}</button>
+        <button type="button" data-zoom="out" aria-label="${c.t("zoomOut")}" disabled>${icon("minus")}</button>
+        <button type="button" data-zoom="reset" aria-label="${c.t("zoomReset")}" disabled>${icon("expand")}</button>
+      </div>
+    </div>
+    <p class="mapplate__credit"><span data-credit-map>${raw(osm)}</span>${sat.on ? html`<span data-credit-sat hidden>${c.l(sat.credit)}</span>` : ""}</p>
+  </div>
+  <p class="mapplate__note js-only">${c.t("pinHint")}${sat.on ? " " + c.t("satNote", { provider: sat.provider }) : ""}</p>`;
 }
 
 /* ---------- distances ---------- */
@@ -450,20 +513,55 @@ export function leadPhoto(c, id, { group = "page" } = {}) {
   </div>`;
 }
 
-/** The closing invitation shared by the inner pages. */
-export function closingCta(c, { title, text, contactLabel }) {
+/** The closing invitation shared by the inner pages. The first action is always the stay planner. The
+    second fits the page it closes, and is never a link to the page the visitor is already on. */
+export function closingCta(c, { title, text, second }) {
   return html`<section class="section section--deep on-deep" aria-labelledby="closing-title">
     <div class="wrap closing closing--plain">
       <h2 class="closing__title" id="closing-title">${title}</h2>
       <div class="closing__body">
         <p>${text}</p>
         <div class="closing__actions">
-          ${bookButton(c, { cls: "btn btn--paper", iconName: "out" })}
-          <a class="btn btn--line-light" href="${c.href("contact/")}">${contactLabel}</a>
+          ${bookButton(c, { cls: "btn btn--paper" })}
+          <a class="btn btn--line-light" href="${second.href}"${second.external ? raw(' target="_blank" rel="noopener"') : ""}>${second.label}${second.external ? newTab(c) : ""}</a>
         </div>
       </div>
     </div>
   </section>`;
+}
+
+/** What a guest needs to know before booking, in one compact block. Every value comes from the same
+    record the questions page reads (hotel.bookingPageNotes), so the two cannot disagree. */
+export function essentials(c, E, { id = "essentials" } = {}) {
+  const row = (label, value) => html`<div><dt>${label}</dt><dd>${value}</dd></div>`;
+  return html`<section class="essentials" aria-labelledby="${id}-title">
+    <h2 class="h3" id="${id}-title">${c.l(E.head)}</h2>
+    <dl class="essentials__list">
+      ${row(c.l(E.checkIn), c.l(E.checkInValue))}
+      ${row(c.l(E.checkOut), c.l(E.checkOutValue))}
+      ${row(c.l(E.breakfast), c.l(E.breakfastValue))}
+      ${row(c.l(E.children), c.l(E.childrenValue))}
+      ${row(c.l(E.terms), c.l(E.termsValue))}
+    </dl>
+    <p class="small muted">${c.fmt(c.l(E.source), { date: c.dateLong(c.config.factsChecked) })}</p>
+    <p class="essentials__links">${arrowLink(c, c.href("booking-terms/"), c.t("bookingTerms"))}${arrowLink(c, c.href("faq/"), c.l(E.allQuestions))}</p>
+  </section>`;
+}
+
+/** The address in Thai, large enough to hold up to a driver, with a way to copy it. */
+export function taxiCard(c, X, { id }) {
+  const h = c.hotel;
+  return html`<div class="taxi-card">
+    <p class="label">${c.l(X.label)}</p>
+    <p class="taxi-card__name" lang="th">${h.name.th}</p>
+    <address lang="th">${h.address.th.map((line, i) => html`${i ? raw("<br>") : ""}${line}`)}</address>
+    <p class="small muted">${c.l(X.note)}</p>
+    <div class="address-card__actions">
+      <button type="button" class="btn btn--line btn--sm js-only" data-copy="${h.name.th} ${h.address.oneLine.th}" aria-describedby="${id}-status">${icon("copy")}${c.l(X.copy)}</button>
+      <a class="btn btn--line btn--sm" href="${h.links.mapListing}" target="_blank" rel="noopener">${icon("pin")}${c.t("viewOnMap")}${newTab(c)}</a>
+    </div>
+    <p class="copy-status" id="${id}-status" role="status" aria-live="polite"></p>
+  </div>`;
 }
 
 /** Ploy Restaurant's published opening times. */

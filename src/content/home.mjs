@@ -13,10 +13,11 @@ export const home = {
     /* <em> marks the accent word; in Thai it is coloured, not slanted */
     title: { en: "City outside.<br>Space <em>within.</em>", th: "ข้างนอกคือเมือง<br>ข้างในคือ<em>พื้นที่ของคุณ</em>" },
     sub: {
-      en: "Suites for your Bangkok stay, beside Platinum Fashion Mall.",
-      th: "ห้องสวีทสำหรับการพักในกรุงเทพฯ ติดแพลทินัม แฟชั่นมอลล์",
+      en: "Six suite types beside Platinum Fashion Mall: compact suites for two, and two-bedroom suites for families and groups.",
+      th: "ห้องสวีท 6 แบบ ติดแพลทินัม แฟชั่นมอลล์ ตั้งแต่ห้องขนาดกะทัดรัดสำหรับ 2 ท่าน ไปจนถึงห้องสวีท 2 ห้องนอนสำหรับครอบครัวและกลุ่มเพื่อน",
     },
     explore: { en: "Explore suites", th: "ดูห้องสวีท" },
+    compare: { en: "Compare the six suites", th: "เปรียบเทียบห้องสวีททั้ง 6 แบบ" },
     slides: [
       { photo: "luxury-suite-bed-sofa-city-window", suite: "luxury-suite" },
       { photo: "penthouse-suite-terrace-skyline", suite: "penthouse-suite" },
@@ -117,10 +118,6 @@ export const home = {
       th: "สระว่ายน้ำกลางแจ้งและฟิตเนส พร้อมบริการประจำวันที่จำเป็นสำหรับการเข้าพักระยะยาว",
     },
     link: { en: "All facilities", th: "สิ่งอำนวยความสะดวกทั้งหมด" },
-    green: {
-      en: "<b>Green Hotel.</b> The hotel states that it holds Green Hotel certification from the Department of Climate Change and Environment. The department's list for its 2025 assessment includes the hotel's Thai name at the Very Good (Silver) level. The list gives names only.",
-      th: "<b>โรงแรมที่เป็นมิตรกับสิ่งแวดล้อม (Green Hotel)</b> โรงแรมระบุว่าได้รับการรับรอง Green Hotel จากกรมการเปลี่ยนแปลงสภาพภูมิอากาศและสิ่งแวดล้อม ประกาศรายชื่อของกรมฯ ประจำปี พ.ศ. 2568 (ค.ศ. 2025) มีชื่อโรงแรมอยู่ในระดับดีมาก (Silver) โดยประกาศระบุเฉพาะชื่อโรงแรม",
-    },
   },
 
   gallery: {
@@ -128,7 +125,7 @@ export const home = {
     title: { en: "Look around.", th: "ชมภาพโรงแรม" },
     lead: { en: "Photographs from the hotel's own website, each labelled with what it shows.", th: "ภาพถ่ายจากเว็บไซต์ของโรงแรม พร้อมคำบรรยายสิ่งที่อยู่ในภาพ" },
     link: { en: "Open the gallery", th: "เปิดแกลเลอรี" },
-    photos: ["deluxe-suite-bathtub-city-view", "family-suite-three-beds-city-windows", "executive-suite-living-dining-windows", "penthouse-suite-living-room-double-height", "junior-suite-living-room", "ploy-restaurant-breakfast-poolside"],
+    photos: ["deluxe-suite-bathtub-city-view", "family-suite-three-beds-city-windows", "executive-suite-living-dining-windows", "penthouse-suite-living-room-double-height"],
   },
 
   essentials: {

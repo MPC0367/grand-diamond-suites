@@ -1,15 +1,13 @@
 /* Dining, facilities, location and gallery. */
 import { html, raw } from "../../lib/html.mjs";
-import { icon } from "../icons.mjs";
-import { pic, shot, bookButton, arrowLink, sectionHead, eyebrow, pageTop, leadPhoto, closingCta, mapPlate, hoursTable, addressCard, srcsetOf, newTab } from "../components.mjs";
-import { diningPage as D, facilitiesPage as F, locationPage as L, galleryPage as G } from "../../content/pages.mjs";
-import { home } from "../../content/home.mjs";
+import { icon, KIND_ICON } from "../icons.mjs";
+import { pic, shot, bookButton, arrowLink, sectionHead, eyebrow, pageTop, leadPhoto, mapPlate, hoursTable, addressCard, taxiCard, unlisted, srcsetOf, newTab } from "../components.mjs";
+import { diningPage as D, facilitiesPage as F, locationPage as L, galleryPage as G, taxiCardText } from "../../content/pages.mjs";
 import { routes, routesMeta } from "../../content/routes.mjs";
 import { media } from "../../data/media.mjs";
 import { suiteList } from "../../data/suites.mjs";
-import { places, placeDistance, placesIn, marked } from "./shared.mjs";
+import { places, placeDistance, placesIn, marked, closingFor } from "./shared.mjs";
 
-const closing = (c) => closingCta(c, { title: marked(c, home.closing.title), text: c.l(home.closing.text), contactLabel: c.l(home.closing.contact) });
 const preload = (c, id) => ({ srcset: srcsetOf(c, c.media(id), "avif"), sizes: "100vw" });
 
 /* ---------- /dining/ ---------- */
@@ -40,7 +38,7 @@ ${leadPhoto(c, "ploy-restaurant-dining-room")}
       <div class="trio__item reveal">
         <h3 class="h3">${c.l(D.breakfastHead)}</h3>
         <p>${c.l(D.breakfast)}</p>
-        ${bookButton(c, { cls: "arrow-link", label: c.t("checkAvailability"), iconName: "arrow" })}
+        ${bookButton(c, { cls: "arrow-link", iconName: "arrow" })}
       </div>
       <div class="trio__item reveal" data-d="1">
         <h3 class="h3">${c.l(D.dietHead)}</h3>
@@ -55,7 +53,19 @@ ${leadPhoto(c, "ploy-restaurant-dining-room")}
     </div>
   </div>
 </section>
-${closing(c)}`,
+<section class="section" aria-labelledby="practical-title">
+  <div class="wrap cols-rail">
+    <div class="cols-rail__head">
+      <h2 id="practical-title">${c.l(D.practicalHead)}</h2>
+      <p class="small muted">${c.l(D.practicalNote)}</p>
+      <p><a class="arrow-link" href="${c.href("contact/")}?about=dining">${c.l(D.ask)}${icon("arrow")}</a></p>
+    </div>
+    <dl class="specs specs--wide">
+      ${Object.entries(D.practical).map(([k, label]) => { const v = c.hotel.dining.practical[k]; return html`<div><dt>${c.l(label)}</dt><dd>${v ? c.l(v) : unlisted(c)}</dd></div>`; })}
+    </dl>
+  </div>
+</section>
+${closingFor(c, "dining")}`,
     };
   },
 };
@@ -69,7 +79,7 @@ export const facilitiesDef = {
   render(c) {
     const fac = (key) => c.hotel.facilities.find((f) => f.key === key);
     const pool = fac("pool"), fit = fac("fitness");
-    const rest = c.hotel.facilities.filter((f) => !f.lead);
+    const during = c.hotel.facilities.filter((f) => !f.lead && f.key !== "meetings");
     return {
       preloadImage: preload(c, "hotel-pool-and-tower"),
       main: html`${pageTop(c, { trail: [{ label: c.t("facilities") }], eyebrowText: c.l(F.eyebrow), title: marked(c, F.h1), lead: c.l(F.lead) })}
@@ -78,6 +88,7 @@ ${leadPhoto(c, "hotel-pool-and-tower")}
   <div class="wrap split">
     <div class="split__media reveal">${shot(c, "hotel-pool-loungers", { group: "page", sizes: "(min-width: 900px) 56vw, 100vw" })}</div>
     <div class="split__body reveal" data-d="1">
+      ${eyebrow(c, c.l(F.leisure))}
       <h2 id="pool-title">${c.l(pool.name)}</h2>
       <p class="lead">${c.l(pool.text)}</p>
     </div>
@@ -87,8 +98,11 @@ ${leadPhoto(c, "hotel-pool-and-tower")}
   <div class="wrap split split--flip">
     <div class="split__media reveal">${shot(c, "hotel-fitness-centre", { group: "page", sizes: "(min-width: 900px) 56vw, 100vw" })}</div>
     <div class="split__body reveal" data-d="1">
+      ${eyebrow(c, c.l(F.leisure))}
       <h2 id="fit-title">${c.l(fit.name)}</h2>
       <p class="lead">${c.l(fit.text)}</p>
+      <p class="small muted">${c.l(F.hoursNote)}</p>
+      <p><a class="arrow-link" href="${c.href("contact/")}?about=stay">${c.l(F.ask)}${icon("arrow")}</a></p>
     </div>
   </div>
 </section>
@@ -96,11 +110,11 @@ ${leadPhoto(c, "hotel-pool-and-tower")}
   <div class="wrap">
     ${sectionHead(c, { title: c.l(F.directoryHead), id: "services-title" })}
     <ul class="fac-list fac-list--flush">
-      ${rest.map((f) => html`<li>${icon(f.icon)}<div><b>${c.l(f.name)}</b>${f.text ? html`<span>${c.l(f.text)}</span>` : ""}</div></li>`)}
+      ${during.map((f) => html`<li>${icon(f.icon)}<div><b>${c.l(f.name)}</b>${f.text ? html`<span>${c.l(f.text)}</span>` : ""}</div></li>`)}
     </ul>
     <div class="notes notes--gap">
-      <p class="note">${c.l(F.hoursNote)}</p>
       <p class="note">${c.l(F.parkingNote)}</p>
+      <p class="note">${c.l(F.laundryNote)}</p>
     </div>
   </div>
 </section>
@@ -108,6 +122,7 @@ ${leadPhoto(c, "hotel-pool-and-tower")}
   <div class="wrap split">
     <div class="split__media reveal">${shot(c, "hotel-meeting-room", { group: "page", sizes: "(min-width: 900px) 56vw, 100vw" })}</div>
     <div class="split__body reveal" data-d="1">
+      ${eyebrow(c, c.l(F.business))}
       <h2 id="meet-title">${c.l(F.meetingsHead)}</h2>
       <p>${c.l(F.meetings)}</p>
       <p><a class="btn btn--line" href="${c.href("contact/")}?about=meeting">${c.l(F.meetingsAsk)}${icon("arrow")}</a></p>
@@ -122,7 +137,7 @@ ${leadPhoto(c, "hotel-pool-and-tower")}
     </div>
   </div>
 </section>
-${closing(c)}`,
+${closingFor(c, "facilities")}`,
     };
   },
 };
@@ -140,15 +155,15 @@ export const locationDef = {
     const origin = `${h.coords.lat}%2C${h.coords.lon}`;
     const dirTo = (p) => `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${p.lat}%2C${p.lon}&travelmode=walking`;
 
-    const list = html`<ol class="places">
-      ${places.map((p, i) => html`<li class="place" data-place="${p.id}" data-kind="${p.kind}">
+    const list = html`<ul class="places">
+      ${places.map((p) => html`<li class="place" data-place="${p.id}" data-kind="${p.kind}">
         <button type="button" class="place__btn js-only" aria-expanded="false" aria-controls="place-${p.id}">
-          <span class="place__n" aria-hidden="true">${i + 1}</span>
+          <span class="place__n" aria-hidden="true">${icon(KIND_ICON[p.kind])}</span>
           <span><span class="place__name">${c.l(p.name)}</span><span class="place__kind">${kindName(p.kind)}</span></span>
           <span class="place__dist">${placeDistance(c, p)}</span>
         </button>
         <div class="place__btn place__btn--static nojs-only">
-          <span class="place__n" aria-hidden="true">${i + 1}</span>
+          <span class="place__n" aria-hidden="true">${icon(KIND_ICON[p.kind])}</span>
           <span><span class="place__name">${c.l(p.name)}</span><span class="place__kind">${kindName(p.kind)}</span></span>
           <span class="place__dist">${placeDistance(c, p)}</span>
         </div>
@@ -159,7 +174,7 @@ export const locationDef = {
           <p><a class="link" href="${dirTo(p)}" target="_blank" rel="noopener">${c.t("directionsFrom")}<span class="sr-only">: ${c.l(p.name)}</span>${newTab(c)}</a></p>
         </div>
       </li>`)}
-    </ol>`;
+    </ul>`;
 
     return {
       main: html`${pageTop(c, { trail: [{ label: c.t("location") }], eyebrowText: c.l(L.eyebrow), title: marked(c, L.h1), lead: c.l(L.lead) })}
@@ -173,9 +188,9 @@ export const locationDef = {
     </div>
     <div class="split__body reveal" data-d="1">
       <h2 id="arrive-title">${c.l(L.arriveHead)}</h2>
-      ${addressCard(c, { id: "loc-addr", showOther: c.lang === "en", extra: html`<p class="small muted">${c.l(L.addressNote)}</p>` })}
+      ${addressCard(c, { id: "loc-addr", extra: html`<p class="small muted">${c.l(L.addressNote)}</p>` })}
+      ${taxiCard(c, taxiCardText, { id: "loc-taxi" })}
       <ul class="linklist">
-        <li><a class="arrow-link" href="${h.links.mapListing}" target="_blank" rel="noopener">${c.t("viewOnMap")}${icon("out")}${newTab(c)}</a></li>
         <li><a class="arrow-link" href="${h.phone.href}">${icon("phone")}${h.phone.display}</a></li>
       </ul>
     </div>
@@ -185,11 +200,11 @@ export const locationDef = {
   <div class="wrap">
     ${sectionHead(c, { title: c.l(L.exploreHead), id: "explore-title", lead: c.l(L.exploreLead) })}
     <div class="explorer" data-explorer>
-      <div class="explorer__map">${mapPlate(c, places, { interactive: true })}</div>
+      <div class="explorer__map">${mapPlate(c, places)}</div>
       <div class="explorer__list">
         <div class="explorer__filters js-only" role="group" aria-label="${c.l(L.exploreHead)}">
           <button type="button" class="chip" data-filter="all" aria-pressed="true">${c.t("all")}</button>
-          ${["shopping", "transport", "culture"].map((k) => html`<button type="button" class="chip" data-filter="${k}" aria-pressed="false">${kindName(k)}</button>`)}
+          ${["shopping", "transport", "culture"].map((k) => html`<button type="button" class="chip chip--kind" data-filter="${k}" aria-pressed="false">${icon(KIND_ICON[k])}${kindName(k)}</button>`)}
           <span class="filterbar__count" data-count role="status" aria-live="polite"></span>
         </div>
         ${list}
@@ -226,7 +241,7 @@ export const locationDef = {
     </div>
   </div>
 </section>
-${closing(c)}`,
+${closingFor(c, "location")}`,
     };
   },
 };
@@ -266,7 +281,7 @@ export const galleryDef = {
     </section>`)}
   </div>
 </section>
-${closing(c)}`,
+${closingFor(c, "gallery")}`,
     };
   },
 };

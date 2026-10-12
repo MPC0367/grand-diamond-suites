@@ -27,6 +27,7 @@ import { config, assertConfig } from "../src/site.config.mjs";
 import { hotel } from "../src/data/hotel.mjs";
 import { mediaById } from "../src/data/media.mjs";
 import { suites, suiteList } from "../src/data/suites.mjs";
+import { verification } from "../src/data/verification.mjs";
 import { ui } from "../src/i18n/ui.mjs";
 import { layout } from "../src/templates/layout.mjs";
 import { viewerData } from "../src/templates/components.mjs";
@@ -58,18 +59,50 @@ const FACTS = {
   maxArea: Math.max(...suiteList.map((x) => x.area.max)),
   bfOpens: services[0].opens, bfCloses: services[0].closes,
   alcOpens: services[1].opens, alcCloses: services[1].closes, lastOrder: services[1].lastOrder,
-  maxNights: hotel.booking.maxNights,
+  maxNights: hotel.booking.maxNights, maxGuests: hotel.booking.maxGuests, maxAdults: hotel.booking.maxAdults,
   occFamily: suites["family-suite"].occupancy, occDeluxe: suites["deluxe-suite"].occupancy,
   occExecutive: suites["executive-suite"].occupancy, occPenthouse: suites["penthouse-suite"].occupancy,
   checkIn: hotel.bookingPageNotes.checkIn, checkOut: hotel.bookingPageNotes.checkOut,
+  mapProvider: config.map.satellite.provider,
 };
 const fill = (v) => (typeof v === "string" ? fmt(v, FACTS) : Array.isArray(v) ? v.map(fill) : v);
+
+/* The studio's working notes on each item of the verification list: what each source says, the question for
+   the hotel, who is to answer. Private, so not in the repository; a clone builds without them. */
+const notesFile = path.join(ROOT, "_private/verification-notes.json");
+const notes = existsSync(notesFile) ? JSON.parse(await readFile(notesFile, "utf8")) : null;
+
+/* the verification list must name real suites and real rows, and a printed note needs both languages */
+{
+  const fields = new Set(["area", "beds", "bedrooms", "bathrooms", "living", "kitchen", "outdoor", "occupancy", "variants"]);
+  const ids = new Set();
+  for (const v of verification) {
+    if (ids.has(v.id)) throw new Error("Verification queue: duplicate id " + v.id);
+    ids.add(v.id);
+    if (!["conflicting", "unknown", "published", "confirmed"].includes(v.status)) throw new Error("Verification queue: unknown status on " + v.id);
+    if (v.subject !== "hotel") {
+      if (!suites[v.subject]) throw new Error("Verification queue: unknown suite on " + v.id);
+      if (!fields.has(v.field)) throw new Error("Verification queue: unknown field on " + v.id);
+    }
+    if (v.flag && !(v.flag.en && v.flag.th)) throw new Error("Verification queue: note on " + v.id + " needs English and Thai");
+    if (v.status === "confirmed" && v.flag) throw new Error("Verification queue: a confirmed item carries no note: " + v.id);
+    if (notes) {
+      const n = notes[v.id];
+      if (!n || !n.detail || !n.question || !n.owner) throw new Error("Verification queue: the working notes lack what the sources say, the question or the owner for " + v.id);
+      if (v.status === "confirmed" && !n.reviewer) throw new Error("Verification queue: a confirmed item names its reviewer: " + v.id);
+    }
+  }
+  if (notes) for (const id of Object.keys(notes)) if (!ids.has(id)) throw new Error("Verification queue: working notes for an item that is not in the list: " + id);
+}
 
 const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
 const map = {
   width: mapInfo.width,
   height: mapInfo.height,
   files: mapInfo.files,
+  bounds: mapInfo.bounds,
+  /* how many metres of ground the plate spans from west to east, at its own latitude */
+  groundWidth: 6378137 * (((mapInfo.bounds.east - mapInfo.bounds.west) * Math.PI) / 180) * Math.cos((((mapInfo.bounds.north + mapInfo.bounds.south) / 2) * Math.PI) / 180),
   /** Position on the plate as percentages, from the same bounds the drawing used. */
   project(lat, lon) {
     const b = mapInfo.bounds;
@@ -100,6 +133,8 @@ function context(lang, page, { absoluteLinks = false } = {}) {
   return {
     lang, other, config, hotel, map, stamp, used,
     page,
+    /* set by a component that a page uses, read by the layout: `map` when the page carries the neighbourhood map */
+    flags: {},
     l(o) {
       if (o === null || o === undefined) throw new Error(`Missing text on ${lang}/${page.path}`);
       if (typeof o === "string") return fill(o);
@@ -300,11 +335,42 @@ let mediaCount = 0, mediaBytes = 0, mediaMax = 0;
 if (existsSync(mediaDir)) for (const f of await readdir(mediaDir)) { const s = (await stat(path.join(mediaDir, f))).size; mediaCount++; mediaBytes += s; mediaMax = Math.max(mediaMax, s); }
 if (!mediaCount) errors.push("docs/media is empty: run node tools/images.mjs first");
 if (mediaMax > 200 * 1024) errors.push(`an image in docs/media is over 200 KB (${Math.round(mediaMax / 1024)} KB)`);
-if (cssGz > 60 * 1024) warnings.push(`CSS is ${Math.round(cssGz / 1024)} KB compressed (budget 60)`);
-if (jsGz > 150 * 1024) warnings.push(`JavaScript is ${Math.round(jsGz / 1024)} KB compressed (budget 150)`);
+/* budgets from the October 2026 audit: the shared stylesheet and script each under 25 KB compressed */
+if (cssGz > 25 * 1024) errors.push(`CSS is ${(cssGz / 1024).toFixed(1)} KB compressed (budget 25)`);
+if (jsGz > 25 * 1024) errors.push(`JavaScript is ${(jsGz / 1024).toFixed(1)} KB compressed (budget 25)`);
 
 await mkdir(path.join(ROOT, "_private"), { recursive: true });
 await writeFile(path.join(ROOT, "_private/build-report.json"), JSON.stringify({ built: new Date().toISOString(), mode: config.mode, basePath: config.basePath, stamp, pages: report, cssGzip: cssGz, jsGzip: jsGz, media: { files: mediaCount, bytes: mediaBytes, largest: mediaMax }, warnings, errors }, null, 1), "utf8");
+
+/* the open questions for the hotel, written from the same list that prints the notes on the pages */
+if (notes) {
+  const name = (v) => (v.subject === "hotel" ? "Hotel" : suites[v.subject].name.en);
+  const esc = (t) => String(t).split("|").join("/");
+  const order = { conflicting: 0, unknown: 1, published: 2, confirmed: 3 };
+  const rows = verification.map((v) => ({ sources: [], reviewer: null, nextReview: null, ...v, ...notes[v.id] })).sort((a, b) => order[a.status] - order[b.status]);
+  const counts = rows.reduce((o, v) => { o[v.status] = (o[v.status] || 0) + 1; return o; }, {});
+  const md = [
+    "# Verification queue",
+    "",
+    "Generated by `node tools/build.mjs` from `src/data/verification.mjs` (the list, and the notes shown on the site) and `_private/verification-notes.json` (what the sources say, the question, the owner). Do not edit this file: edit those two.",
+    "Private working record for O2 Design Studio. Nothing here has been confirmed by the hotel.",
+    "",
+    `${rows.length} items: ${counts.conflicting || 0} where two sources disagree, ${counts.unknown || 0} unpublished, ${counts.published || 0} published once and unconfirmed, ${counts.confirmed || 0} confirmed.`,
+    "",
+    "A note marked \"shown on site\" is printed beside the fact it qualifies, on the suite page, in the suite selector and in the comparison, in English and Thai. It leaves every page when the item is marked confirmed.",
+    "",
+    "| Status | Subject | Fact | What the sources say | Question for the hotel | Shown on site | Checked | Owner | Reviewer | Next review |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ...rows.map((v) => `| ${v.status} | ${name(v)} | ${v.field} | ${esc(v.detail)} | ${esc(v.question)} | ${v.flag ? esc(v.flag.en) : ""} | ${v.checked} | ${esc(v.owner)} | ${v.reviewer || ""} | ${v.nextReview || ""} |`),
+    "",
+    "Sources",
+    "",
+    ...rows.filter((v) => v.sources.length).map((v) => `- ${v.id}: ${v.sources.join("; ")}`),
+    "",
+  ].join(String.fromCharCode(10));
+  await mkdir(path.join(ROOT, "_private/handover"), { recursive: true });
+  await writeFile(path.join(ROOT, "_private/handover/verification-queue.md"), md, "utf8");
+}
 
 console.log(`${config.mode} build: ${report.length} pages (${pages.length} per language), plus 404 and the root page`);
 console.log(`CSS ${(cssGz / 1024).toFixed(1)} KB gzip, JS ${(jsGz / 1024).toFixed(1)} KB gzip, largest page ${(Math.max(...report.map((r) => r.gzip)) / 1024).toFixed(1)} KB gzip`);

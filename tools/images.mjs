@@ -12,6 +12,12 @@
      _private/asset-manifest.json    provenance and what was done to each file
      _private/review/compare-*.jpg   original beside result, when run with --compare
 
+   The originals are not in the repository (they are the hotel's files, kept
+   out of the public history). Point the tool at them with two environment
+   variables, or leave both unset to use the folders under _private:
+     GDS_ORIGINALS   folder holding the originals and their index.json
+     GDS_UPSCALED    folder holding restored masters, if any
+
    Usage: node tools/images.mjs [--compare] [--only=<id>] */
 import sharp from "sharp";
 import { readFile, writeFile, mkdir, stat, readdir, unlink } from "node:fs/promises";
@@ -19,8 +25,8 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { media } from "../src/data/media.mjs";
 
-const ORIG = path.resolve("_private/originals");
-const UPSCALED = path.resolve("_private/upscaled");
+const ORIG = path.resolve(process.env.GDS_ORIGINALS || "_private/originals");
+const UPSCALED = path.resolve(process.env.GDS_UPSCALED || "_private/upscaled");
 const OUT = path.resolve("docs/media"); /* published as /media by GitHub Pages */
 const REVIEW = path.resolve("_private/review");
 const WIDTHS = [480, 768, 1024, 1440, 1920, 2560];
@@ -28,7 +34,10 @@ const BUDGET = 200 * 1024; /* studio standard: no image over 200 KB */
 const compare = process.argv.includes("--compare");
 const only = (process.argv.find((a) => a.startsWith("--only=")) || "").slice(7);
 
-const index = JSON.parse(await readFile(path.join(ORIG, "index.json"), "utf8"));
+const index = JSON.parse(await readFile(path.join(ORIG, "index.json"), "utf8").catch(() => {
+  console.error("No originals found at " + ORIG + ". Set GDS_ORIGINALS to the folder that holds them and their index.json. The published files in docs/media are unaffected.");
+  process.exit(1);
+}));
 const srcInfo = new Map(index.items.filter((i) => i.file).map((i) => [i.file, i]));
 await mkdir(OUT, { recursive: true });
 await mkdir(REVIEW, { recursive: true });

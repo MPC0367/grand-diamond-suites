@@ -3,6 +3,7 @@ import { raw } from "../lib/html.mjs";
 /* Line icons drawn for this site: information graphics, 24 px grid, 1.6 stroke. */
 const P = {
   arrow: '<path d="M4 12h15M13 6l6 6-6 6"/>',
+  down: '<path d="M12 4v15M6 13l6 6 6-6"/>',
   out: '<path d="M7 17L17 7M9 7h8v8"/>',
   chev: '<path d="M5 9l7 7 7-7"/>',
   close: '<path d="M5 5l14 14M19 5L5 19"/>',
@@ -31,7 +32,17 @@ const P = {
   train: '<rect x="6" y="3" width="12" height="14" rx="2.5"/><path d="M6 11h12M9 20l-2 2M15 20l2 2M9.5 14h.01M14.5 14h.01"/>',
   plane: '<path d="M10.5 13.5L3 11l1.5-1.5 7 1L16 6c1.5-1.5 3.5-2 4.5-1.5.5 1-.0 3-1.5 4.5l-4.5 4.5 1 7L14 22l-2.5-7.5L8 18v2.5l-1.5 1L5.5 18.5 2.5 17.5l1-1.5H6z"/>',
   walk: '<circle cx="13" cy="4.5" r="1.8"/><path d="M9 21l2.5-6-2-2.5L11 8l3 2.5 3 1M11 8l-3 1.5-1 3.5M13 14l2.5 2.5L16 21"/>',
+  /* the three kinds of place on the neighbourhood map */
+  /* shopping is a cart: a bag with a handle, at this size, reads as a padlock */
+  cart: '<path d="M3 4.5h2.6l2.3 10h9.4l2-7.5H6.6"/><circle cx="9.2" cy="18.6" r="1.5"/><circle cx="16.3" cy="18.6" r="1.5"/>',
+  landmark: '<path d="M3.5 9.5L12 4l8.5 5.5zM6.5 9.5V17M10.2 9.5V17M13.8 9.5V17M17.5 9.5V17M5 17h14M3.5 20h17"/>',
+  /* map controls */
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  minus: '<path d="M5 12h14"/>',
 };
+
+/* which icon stands for which kind of place: on the pins, in the lists and on the filter chips */
+export const KIND_ICON = { shopping: "cart", transport: "train", culture: "landmark" };
 
 export function icon(name, cls = "") {
   const body = P[name];

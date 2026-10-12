@@ -68,20 +68,34 @@ export const hotel = {
      children-age (ages separated by semicolons). Read-only checks on
      2026-10-08 showed the booking page displaying each of them as passed:
      dates across a year end, same-day arrival, 1 to 6 adults, 30 nights,
-     and one or two children by age. Nothing else is passed. Room types
+     and one to three children by age. Nothing else is passed. Room types
      need the hotel's own room identifiers, which are not known, so the
-     suite is chosen on the booking page. */
+     suite is chosen on the booking page.
+
+     Read-only checks on 2026-10-12 (kept in _private/booking-probe, l to u)
+     set the limits below. They are what the booking page displayed for the
+     requests tried, not a rule the hotel has stated:
+     - 31 nights: dates shown, rooms listed. 60 and 90 nights: "There is a
+       maximum stay of 31 nights for the selected dates", no rooms listed.
+     - 8 adults: shown as 8 adults, in English and in Thai. 9 adults: shown
+       as 8 adults, so the page lowers the number without saying so.
+     - 8 guests in total: 5 adults and 3 children were all shown; 6 adults
+       and 3 children were shown as "6 adults, 2 children"; 8 adults and one
+       child as "8 adults". Past 8 in total the page drops guests silently,
+       so this site never sends such a request and offers other routes. */
   booking: {
     page: { en: "https://www.granddiamondsuites.com/booking", th: "https://www.granddiamondsuites.com/th/booking" },
     allowedHost: "www.granddiamondsuites.com",
     params: { date: "date", nights: "nights", adults: "adults", childrenAge: "children-age" },
-    maxAdults: 6,
+    maxAdults: 8,
     maxChildren: 3,
     maxChildAge: 17,
-    maxNights: 30,
+    /* adults and children together, in one search */
+    maxGuests: 8,
+    maxNights: 31,
     provider: "Exely Booking Engine",
     providerDocs: "https://exely.com/help/351067/",
-    verified: "2026-10-08",
+    verified: "2026-10-12",
   },
 
   /* Shared room amenities: "All suites include" (rooms page). */
@@ -119,6 +133,9 @@ export const hotel = {
     dinner: { mentioned: true, hours: null, source: "facilities" },
     breakfastIncluded: null,
     menuUrl: null,
+    /* Practical details a diner asks about. Each is null ("Not listed") until the hotel supplies it; then
+       it is written as { en, th, source, checked } and appears on the dining page in both languages. */
+    practical: { menu: null, breakfastPrice: null, location: null, reservations: null, nonGuests: null },
   },
 
   /* Facilities named on the official facilities page. Hours, charges, floor

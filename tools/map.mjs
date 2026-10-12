@@ -7,7 +7,11 @@
      3. builds one SVG per language (English, Thai) in the site palette;
      4. renders the SVG in a real browser with the site's own web fonts;
      5. writes the WebP and JPEG derivatives, the projection record the site uses to
-        place its pins, and two check images with verification points drawn on top.
+        place its pins, and two check images with verification points drawn on top;
+     6. writes two more files for the map's zoom and satellite view: the same plate at
+        twice the size (3200 x 2400), shown once a visitor zooms in, and the names
+        alone on a clear background, laid over the satellite images so that the streets
+        keep their names. Both come from the same drawing and the same projection.
 
    The plate carries no pins, icons or place names: the site overlays those in HTML
    from coordinates, using the bounds written to src/data/map.generated.json.
@@ -545,16 +549,16 @@ const FONT_CSS = `
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 @font-face { font-family: "Noto Sans Thai"; font-style: normal; font-weight: 300 700; src: url(data:font/woff2;base64,${await fontData("noto-sans-thai-thai.woff2")}) format("woff2");
   unicode-range: U+02D7, U+0303, U+0331, U+0E01-0E5B, U+200C-200D, U+25CC; }`;
-const styleFor = (lang) => `${FONT_CSS}
-html, body { margin: 0; background: ${C.ground}; }
+const styleFor = (lang, overlay = false) => `${FONT_CSS}
+html, body { margin: 0; background: ${overlay ? "transparent" : C.ground}; }
 svg { display: block; }
 text { text-rendering: geometricPrecision; font-kerning: normal; }
 .lbl { font: 600 ${TYPE[lang].size}px ${TYPE[lang].family}; letter-spacing: ${TYPE[lang].spacing}; text-anchor: middle;
-  fill: ${C.label}; stroke: ${C.ground}; stroke-width: ${HALO * 2}px; stroke-linejoin: round; paint-order: stroke; }
+  fill: ${overlay ? "#FFFFFF" : C.label}; stroke: ${overlay ? "rgba(14, 22, 26, 0.86)" : C.ground}; stroke-width: ${HALO * 2}px; stroke-linejoin: round; paint-order: stroke;${overlay ? " font-weight: 700;" : ""} }
 .lbl.small { font-size: ${TYPE[lang].small}px; }
 .chk { font: 700 13px ${TYPE[lang].family}; fill: #C8102E; stroke: #FFFFFF; stroke-width: 4px; stroke-linejoin: round; paint-order: stroke; }
 .chk-x { stroke: #C8102E; stroke-width: 2.2; stroke-linecap: round; fill: none; }`;
-const pageFor = (lang, svg) => `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><style>${styleFor(lang)}</style></head><body>${svg}</body></html>`;
+const pageFor = (lang, svg, overlay = false) => `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><style>${styleFor(lang, overlay)}</style></head><body>${svg}</body></html>`;
 
 async function fontsReady(page, lang) {
   /* the page must really be using the site's fonts, never a system fallback */
@@ -593,6 +597,9 @@ const baseSvg = [
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 const context = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
 const page = await context.newPage();
+/* a second page at twice the density, for the large plate and the names overlay */
+const context2 = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 2 });
+const page2 = await context2.newPage();
 
 const OUT_IMG = at("src/assets/img"), OUT_PRIVATE = at("_private/map");
 await mkdir(OUT_IMG, { recursive: true });
@@ -670,7 +677,7 @@ try {
 
     /* 4. draw, render, export */
     const labelsSvg = placed.map((l) => `<text class="lbl${l.small ? " small" : ""}" transform="translate(${n2(l.x)} ${n2(l.y)}) rotate(${n2(l.angle)})" y="${n2(l.cap / 2)}">${esc(l.text)}</text>`).join("\n");
-    const svg = (extra = "") => `<svg id="plate" xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">\n${baseSvg}\n${labelsSvg}\n${extra}</svg>`;
+    const svg = (extra = "", base = baseSvg) => `<svg id="plate" xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">\n${base}\n${labelsSvg}\n${extra}</svg>`;
     const shoot = async (markup) => {
       await page.setContent(pageFor(lang, markup));
       await fontsReady(page, lang);
@@ -686,7 +693,22 @@ try {
     await sharp(png).webp({ quality: 82, effort: 6, smartSubsample: true }).toFile(path.join(OUT_IMG, names.webp1600));
     await small.clone().webp({ quality: 82, effort: 6, smartSubsample: true }).toFile(path.join(OUT_IMG, names.webp960));
     await small.clone().jpeg({ quality: 82, mozjpeg: true, chromaSubsampling: "4:4:4" }).toFile(path.join(OUT_IMG, names.jpg960));
-    files[lang] = { webp: [names.webp960, names.webp1600], jpg: names.jpg960 };
+    /* the same drawing at twice the size, and its names alone on a clear background */
+    const shootLarge = async (markup, overlay = false) => {
+      await page2.setContent(pageFor(lang, markup, overlay));
+      await fontsReady(page2, lang);
+      const big = await page2.locator("#plate").screenshot({ type: "png", omitBackground: overlay });
+      const info = await sharp(big).metadata();
+      if (info.width !== W * 2 || info.height !== H * 2) throw new Error(`large render is ${info.width} x ${info.height}, expected ${W * 2} x ${H * 2}`);
+      return big;
+    };
+    names.webp3200 = `map-${lang}-3200.webp`;
+    names.names = `map-${lang}-names.webp`;
+    await sharp(await shootLarge(svg())).webp({ quality: 78, effort: 6, smartSubsample: true }).toFile(path.join(OUT_IMG, names.webp3200));
+    const namesPng = await shootLarge(svg("", ""), true);
+    if ((await sharp(namesPng).stats()).channels[3].min !== 0) throw new Error("the names overlay has no clear background");
+    await sharp(namesPng).webp({ quality: 86, alphaQuality: 92, effort: 6 }).toFile(path.join(OUT_IMG, names.names));
+    files[lang] = { webp: [names.webp960, names.webp1600], jpg: names.jpg960, large: names.webp3200, names: names.names };
     written.push(...Object.values(names).map((n) => path.join(OUT_IMG, n)));
 
     /* check image: the same render with the verification points on top, through the same projection */

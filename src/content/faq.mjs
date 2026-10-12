@@ -1,7 +1,8 @@
 /* Questions and answers. An answer states what the hotel has published and
    where; when the hotel has published nothing, it says so and points to the
    hotel. No yes or no is ever guessed.
-   {contact} {terms} {compare} {location} {dining} {booking} are replaced with links at build time. */
+   {contact} {terms} {compare} {location} {dining} {booking} are replaced with links at build time.
+   {checked} is the day the hotel's pages were read; {bookingChecked} the day the booking page's limits were last checked. */
 
 export const faqGroups = [
   { id: "booking", title: { en: "Booking", th: "การจอง" } },
@@ -30,12 +31,26 @@ export const faq = [
     q: { en: "Which details carry over to the booking page?", th: "ข้อมูลใดบ้างที่ถูกส่งต่อไปยังหน้าจอง" },
     a: {
       en: [
-        "Your arrival date, the number of nights, the number of adults and the age of each child you add. This was checked against the booking page on {checked}.",
+        "Your arrival date, the number of nights, the number of adults and the age of each child you add. This was checked against the booking page on {checked} and again on {bookingChecked}.",
         "Extra rooms and promo codes are added on the booking page itself. You also choose the suite there, so check that the room named on that page is the one you want.",
       ],
       th: [
-        "วันเข้าพัก จำนวนคืน จำนวนผู้ใหญ่ และอายุของเด็กแต่ละคนที่ระบุไว้ ตรวจสอบกับหน้าจองแล้วเมื่อวันที่ {checked}",
+        "วันเข้าพัก จำนวนคืน จำนวนผู้ใหญ่ และอายุของเด็กแต่ละคนที่ระบุไว้ ตรวจสอบกับหน้าจองแล้วเมื่อวันที่ {checked} และอีกครั้งเมื่อวันที่ {bookingChecked}",
         "การเพิ่มห้อง การใช้รหัสโปรโมชั่น และการเลือกประเภทห้อง ต้องทำในหน้าจองโดยตรง จึงควรตรวจสอบชื่อห้องในหน้านั้นให้ตรงกับที่ต้องการ",
+      ],
+    },
+  },
+  {
+    id: "long-or-large", group: "booking",
+    q: { en: "Can I plan a long stay or a large party here?", th: "วางแผนการเข้าพักระยะยาวหรือการเข้าพักเป็นกลุ่มใหญ่ได้หรือไม่" },
+    a: {
+      en: [
+        "When it was checked on {bookingChecked}, the hotel's booking page took stays of up to {maxNights} nights and up to {maxGuests} guests in one search. That is what the page showed for the requests tried, not a rule the hotel has stated.",
+        "For a longer stay or a larger party, the planner does not shorten the dates or drop a guest. It offers the booking page itself, where you can adjust the dates or add a room, or an enquiry with your dates and guests already filled in.",
+      ],
+      th: [
+        "จากการตรวจสอบเมื่อวันที่ {bookingChecked} หน้าจองของโรงแรมรับการเข้าพักได้ไม่เกิน {maxNights} คืน และค้นหาได้ครั้งละไม่เกิน {maxGuests} ท่าน ข้อมูลนี้เป็นสิ่งที่หน้าจองแสดงผลจากการทดลองค้นหา ไม่ใช่เงื่อนไขที่โรงแรมประกาศไว้",
+        "หากต้องการเข้าพักนานกว่านั้นหรือมีผู้เข้าพักมากกว่านั้น ตัววางแผนการเข้าพักจะไม่ลดจำนวนคืนหรือตัดจำนวนผู้เข้าพักออก แต่จะเสนอให้ไปยังหน้าจองเพื่อปรับวันที่หรือเพิ่มห้อง หรือเปิดหน้าสอบถามที่กรอกวันที่และจำนวนผู้เข้าพักให้แล้ว",
       ],
     },
   },

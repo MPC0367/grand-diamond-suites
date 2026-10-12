@@ -10,14 +10,16 @@ export const suitesPage = {
   eyebrow: { en: "Suites", th: "ห้องสวีท" },
   h1: { en: "Find your <em>space.</em>", th: "เลือก<em>ห้องที่ใช่</em>" },
   lead: {
-    en: "Six suite types across {suiteCount} suites. Open each one to see its own photographs and what the hotel lists for it.",
-    th: "ห้องสวีท 6 แบบ รวม {suiteCount} ห้อง เปิดดูแต่ละแบบเพื่อชมภาพถ่ายของห้องนั้นและรายละเอียดที่โรงแรมระบุไว้",
+    en: "Six suite types across {suiteCount} suites. Start with what tells them apart, then open any one for its photographs and the hotel's full list.",
+    th: "ห้องสวีท 6 แบบ รวม {suiteCount} ห้อง เริ่มจากจุดที่แตกต่างกัน แล้วเปิดดูภาพถ่ายและรายละเอียดทั้งหมดที่โรงแรมระบุของแต่ละห้อง",
   },
   aside: {
     en: "Suite names are styles, not sizes: the Luxury Suite is smaller than the Junior Suite.",
     th: "ชื่อห้องบอกรูปแบบ ไม่ได้บอกขนาด ลักชัวรีสวีทมีขนาดเล็กกว่าจู\u2060เนียร์สวีท",
   },
   allHead: { en: "All six, at a glance", th: "ทั้ง 6 แบบโดยสรุป" },
+  lookHead: { en: "Look inside each suite", th: "ดูภายในห้องแต่ละแบบ" },
+  lookLead: { en: "Photographs, and what the hotel lists for each suite type.", th: "ภาพถ่ายและรายละเอียดที่โรงแรมระบุของห้องสวีทแต่ละแบบ" },
   everyHead: { en: "In every suite", th: "ในห้องสวีททุกห้อง" },
   everyLead: { en: "The hotel lists these for all {suiteCount} suites.", th: "โรงแรมระบุว่ามีสิ่งเหล่านี้ในห้องสวีททั้ง {suiteCount} ห้อง" },
   compareHead: { en: "Still deciding?", th: "ยังตัดสินใจไม่ได้" },
@@ -55,6 +57,7 @@ export const suitePage = {
   asideEnquire: { en: "Ask the hotel about this suite", th: "สอบถามโรงแรมเกี่ยวกับห้องนี้" },
   compareHead: { en: "Compare with", th: "เปรียบเทียบกับ" },
   compareAll: { en: "Compare all six suites", th: "เปรียบเทียบห้องสวีททั้ง 6 แบบ" },
+  sideBySide: { en: "See the two side by side", th: "ดูสองห้องนี้เทียบกัน" },
   prev: { en: "Previous suite", th: "ห้องก่อนหน้า" },
   next: { en: "Next suite", th: "ห้องถัดไป" },
   size: { en: "Size", th: "ขนาด" },
@@ -90,12 +93,32 @@ export const comparePage = {
     en: "Guest numbers are as listed on the hotel's booking page on {date}. Apart from \"Free stay for children under 7\" on that page, child and extra-bed rules are not published.",
     th: "จำนวนผู้เข้าพักเป็นไปตามที่ระบุในหน้าจองของโรงแรม ณ วันที่ {date} นอกจากข้อความ \"พักฟรีสำหรับเด็กอายุต่ำกว่า 7 ปี\" ในหน้านั้น โรงแรมไม่ได้เผยแพร่เงื่อนไขเรื่องเด็กและเตียงเสริม",
   },
+  legendFlags: {
+    en: "A note in smaller type under a figure marks a point where two of the hotel's own sources differ, or a photograph shows something its list does not. Each one is a question for the hotel.",
+    th: "ข้อความตัวเล็กใต้ข้อมูลแต่ละรายการ หมายถึงจุดที่แหล่งข้อมูลของโรงแรมเองระบุไม่ตรงกัน หรือภาพถ่ายแสดงสิ่งที่ไม่ได้อยู่ในรายละเอียด ซึ่งควรสอบถามโรงแรมก่อนตัดสินใจ",
+  },
   legendLiving: {
     en: "The hotel's rooms page says each of its suites has a separate living area. The Living space row shows what each suite's own list says.",
     th: "หน้าห้องพักของโรงแรมระบุว่าห้องสวีททุกห้องมีพื้นที่นั่งเล่นแยกเป็นสัดส่วน แถวพื้นที่นั่งเล่นแสดงข้อมูลตามรายละเอียดของห้องแต่ละแบบ",
   },
   scrollHint: { en: "Scroll sideways to see all six suites", th: "เลื่อนไปด้านข้างเพื่อดูครบทั้ง 6 แบบ" },
   view: { en: "View suite", th: "ดูห้องนี้" },
+  statusPair: { en: "Comparing {a} with {b}.", th: "กำลังเปรียบเทียบ{a}กับ{b}" },
+  statusSwapped: {
+    en: "{c} was already the other choice, so the two have swapped places. Comparing {a} with {b}.",
+    th: "{c}ถูกเลือกไว้ในอีกช่องอยู่แล้ว จึงสลับตำแหน่งกัน ขณะนี้เปรียบเทียบ{a}กับ{b}",
+  },
+  diffOnly: { en: "Show differences only", th: "แสดงเฉพาะรายการที่ต่างกัน" },
+  diffOne: { en: "1 row that reads the same for both suites is hidden.", th: "ซ่อน 1 รายการที่เหมือนกันทั้งสองห้อง" },
+  diffMany: { en: "{n} rows that read the same for both suites are hidden.", th: "ซ่อน {n} รายการที่เหมือนกันทั้งสองห้อง" },
+  diffNone: { en: "Every row differs between these suites.", th: "ทุกรายการของสองห้องนี้ต่างกัน" },
+  share: { en: "Copy a link to this comparison", th: "คัดลอกลิงก์หน้าเปรียบเทียบนี้" },
+  shareCopied: { en: "Link copied. It carries the two suites chosen and nothing about you.", th: "คัดลอกลิงก์แล้ว ลิงก์ระบุเฉพาะห้องสวีทสองแบบที่เลือก ไม่มีข้อมูลส่วนตัวของคุณ" },
+  shareFailed: { en: "Could not copy. This is the link:", th: "คัดลอกไม่สำเร็จ ลิงก์คือ" },
+  ctaNote: {
+    en: "The stay planner carries your dates and guests to the hotel's booking page. You choose the suite there.",
+    th: "ตัววางแผนการเข้าพักจะส่งต่อวันที่และจำนวนผู้เข้าพักไปยังหน้าจองของโรงแรม ส่วนประเภทห้องเลือกได้ในหน้านั้น",
+  },
 };
 
 export const diningPage = {
@@ -133,6 +156,20 @@ export const diningPage = {
   },
   ask: { en: "Ask the hotel about dining", th: "สอบถามโรงแรมเรื่องห้องอาหาร" },
   photosHead: { en: "In the restaurant", th: "ภายในห้องอาหาร" },
+  /* one row for each practical detail a diner asks about; the values live in hotel.dining.practical
+     and stay "Not listed" until the hotel supplies them */
+  practicalHead: { en: "Practical details", th: "รายละเอียดที่ควรทราบ" },
+  practical: {
+    menu: { en: "Menu and prices", th: "เมนูและราคา" },
+    breakfastPrice: { en: "Breakfast when it is not in your rate", th: "ราคาอาหารเช้าเมื่อไม่รวมในราคาห้อง" },
+    location: { en: "Where in the hotel", th: "ตำแหน่งภายในโรงแรม" },
+    reservations: { en: "Table reservations", th: "การจองโต๊ะ" },
+    nonGuests: { en: "Open to non-guests", th: "บุคคลภายนอกใช้บริการได้หรือไม่" },
+  },
+  practicalNote: {
+    en: "\"Not listed\" means the hotel has not published it. The front desk can answer, or you can send a question.",
+    th: "\"ไม่ได้ระบุ\" หมายถึงโรงแรมไม่ได้เผยแพร่ข้อมูลส่วนนี้ สอบถามได้ที่แผนกต้อนรับ หรือส่งคำถามถึงโรงแรม",
+  },
 };
 
 export const facilitiesPage = {
@@ -147,15 +184,23 @@ export const facilitiesPage = {
     en: "What the hotel lists on site, with photographs where it has published them.",
     th: "สิ่งอำนวยความสะดวกที่โรงแรมระบุไว้ พร้อมภาพถ่ายเท่าที่โรงแรมเผยแพร่",
   },
-  directoryHead: { en: "Services", th: "บริการ" },
+  /* the page is grouped by what a guest is trying to do */
+  leisure: { en: "Leisure", th: "พักผ่อนและออกกำลังกาย" },
+  directoryHead: { en: "During your stay", th: "บริการระหว่างการเข้าพัก" },
+  business: { en: "Business", th: "ธุรกิจและการประชุม" },
   hoursNote: {
-    en: "Opening times and access rules for the pool, fitness centre and parking are not published, and neither are any charges for the pool or fitness centre. The front desk, open 24 hours, can confirm them.",
-    th: "โรงแรมไม่ได้เผยแพร่เวลาเปิดให้บริการและเงื่อนไขการใช้สระว่ายน้ำ ฟิตเนส และที่จอดรถ รวมถึงค่าใช้จ่ายของสระว่ายน้ำและฟิตเนส สอบถามได้ที่แผนกต้อนรับซึ่งเปิดตลอด 24 ชั่วโมง",
+    en: "Opening times, charges and access rules for the pool and the fitness centre are not published. The front desk, open 24 hours, can confirm them.",
+    th: "โรงแรมไม่ได้เผยแพร่เวลาเปิดให้บริการ ค่าใช้จ่าย และเงื่อนไขการใช้สระว่ายน้ำและฟิตเนส สอบถามได้ที่แผนกต้อนรับซึ่งเปิดตลอด 24 ชั่วโมง",
   },
   parkingNote: {
-    en: "The booking page describes parking as free and indoor. A space cannot be reserved through this website.",
-    th: "หน้าจองระบุว่าเป็นที่จอดรถในร่มโดยไม่มีค่าใช้จ่าย ไม่สามารถจองที่จอดรถผ่านเว็บไซต์นี้ได้",
+    en: "Parking: the booking page describes it as free and indoor. Access times are not published, and a space cannot be reserved through this website.",
+    th: "ที่จอดรถ หน้าจองระบุว่าเป็นที่จอดรถในร่มโดยไม่มีค่าใช้จ่าย โรงแรมไม่ได้เผยแพร่เวลาเข้าออก และไม่สามารถจองที่จอดรถผ่านเว็บไซต์นี้ได้",
   },
+  laundryNote: {
+    en: "Laundry and housekeeping: how to ask for a service, how long it takes and what it costs are not published. Ask the front desk.",
+    th: "บริการซักรีดและทำความสะอาด โรงแรมไม่ได้เผยแพร่วิธีขอใช้บริการ ระยะเวลา และค่าใช้จ่าย กรุณาสอบถามแผนกต้อนรับ",
+  },
+  ask: { en: "Ask the hotel about a facility", th: "สอบถามโรงแรมเรื่องสิ่งอำนวยความสะดวก" },
   meetingsHead: { en: "Meetings", th: "การประชุม" },
   meetings: {
     en: "The hotel lists meeting facilities and Wi-Fi throughout the property for business travellers. Room dimensions, seating layouts, capacity and equipment are not published.",
@@ -237,12 +282,12 @@ export const galleryPage = {
 };
 
 export const offersPage = {
-  title: { en: "Offers and current rates", th: "ข้อเสนอและราคาปัจจุบัน" },
+  title: { en: "Rates and offers", th: "ราคาและข้อเสนอ" },
   description: {
     en: "Looking for an offer at Grand Diamond Suites, Bangkok? Current rates and any discount for your dates are on the official booking page. Check your dates.",
     th: "กำลังมองหาข้อเสนอของแกรนด์ไดมอนด์สวีท กรุงเทพฯ อยู่หรือไม่ ราคาปัจจุบันและส่วนลดสำหรับวันที่ต้องการแสดงอยู่ในหน้าจองทางการของโรงแรม ตรวจสอบห้องว่างได้ที่นั่น",
   },
-  eyebrow: { en: "Offers", th: "ข้อเสนอ" },
+  eyebrow: { en: "Rates and offers", th: "ราคาและข้อเสนอ" },
   h1: { en: "Current rates, <em>at the source.</em>", th: "ราคาปัจจุบัน<em>จากโรงแรมโดยตรง</em>" },
   lead: {
     en: "No offers are listed here, because the hotel has not published terms for any. The rate for your dates, with any discount applied, is shown on its booking page.",
@@ -314,6 +359,19 @@ export const contactPage = {
   depart: { en: "Departure", th: "วันเช็คเอาท์" },
   party: { en: "Who is travelling", th: "ผู้เดินทาง" },
   partyHint: { en: "For example: 2 adults, 1 child aged 5", th: "เช่น ผู้ใหญ่ 2 ท่าน เด็ก 1 คน อายุ 5 ปี" },
+  partyNote: {
+    en: "Filled in from the stay you planned, with children's ages on arrival. Edit it as you like.",
+    th: "กรอกให้จากข้อมูลการเข้าพักที่คุณวางแผนไว้ โดยอายุเด็กนับ ณ วันเข้าพัก แก้ไขได้ตามต้องการ",
+  },
+  lineLabel: { en: "LINE", th: "LINE" },
+  lineLink: { en: "Message the hotel on LINE", th: "ส่งข้อความถึงโรงแรมทาง LINE" },
+  socialLabel: { en: "Social pages", th: "โซเชียลมีเดียของโรงแรม" },
+  sendTo: { en: "Send to", th: "ส่งถึง" },
+  notSent: { en: "Not sent", th: "ยังไม่ได้ส่ง" },
+  longNote: {
+    en: "This message is too long for an email link. \"Open in email app\" will open with the subject only, so copy the message first and paste it into the email.",
+    th: "ข้อความนี้ยาวเกินกว่าจะใส่ในลิงก์อีเมลได้ ปุ่ม \"เปิดในแอปอีเมล\" จะเปิดขึ้นพร้อมหัวข้อเท่านั้น กรุณาคัดลอกข้อความก่อน แล้วนำไปวางในอีเมล",
+  },
   suite: { en: "Suite of interest", th: "ห้องสวีทที่สนใจ" },
   noSuite: { en: "No preference", th: "ยังไม่ได้เลือก" },
   message: { en: "Your question", th: "คำถามของคุณ" },
@@ -340,9 +398,38 @@ export const contactPage = {
     suite: { en: "Suite of interest", th: "ห้องสวีทที่สนใจ" },
     to: { en: "to", th: "ถึง" },
     copied: { en: "Message copied. It has not been sent.", th: "คัดลอกข้อความแล้ว ข้อความยังไม่ได้ถูกส่ง" },
-    copyFailed: { en: "Could not copy. Select the text and copy it by hand.", th: "คัดลอกไม่สำเร็จ กรุณาเลือกข้อความแล้วคัดลอกด้วยตนเอง" },
+    copyFailed: {
+      en: "Could not copy automatically. The message is now selected: copy it with your keyboard, or press and hold it and choose Copy.",
+      th: "คัดลอกอัตโนมัติไม่สำเร็จ ระบบได้เลือกข้อความไว้ให้แล้ว กรุณาคัดลอกด้วยแป้นพิมพ์ หรือแตะค้างที่ข้อความแล้วเลือกคัดลอก",
+    },
+    leaveDraft: {
+      en: "Changing language reloads this page, and what you have typed here is not saved. Change language anyway?",
+      th: "การเปลี่ยนภาษาจะโหลดหน้านี้ใหม่ และข้อความที่พิมพ์ไว้จะไม่ถูกบันทึก ต้องการเปลี่ยนภาษาหรือไม่",
+    },
+    prompts: {
+      family: {
+        en: "Useful to mention: the children's ages, and any cot or extra bed you would like to ask about.",
+        th: "ข้อมูลที่ควรระบุ ได้แก่ อายุของเด็ก และเตียงเด็กอ่อนหรือเตียงเสริมที่ต้องการสอบถาม",
+      },
+      long: {
+        en: "Useful to mention: your dates or the length of stay, how many guests, and what matters most to you, such as a kitchenette or laundry.",
+        th: "ข้อมูลที่ควรระบุ ได้แก่ วันที่หรือระยะเวลาเข้าพัก จำนวนผู้เข้าพัก และสิ่งที่ให้ความสำคัญ เช่น ครัวขนาดเล็กหรือบริการซักรีด",
+      },
+      meeting: {
+        en: "Useful to mention: the date and times, how many people, the layout you have in mind (theatre, classroom or boardroom), and any equipment or catering.",
+        th: "ข้อมูลที่ควรระบุ ได้แก่ วันและเวลา จำนวนผู้เข้าร่วม รูปแบบการจัดห้องที่ต้องการ (เธียเตอร์ ห้องเรียน หรือโต๊ะประชุม) รวมถึงอุปกรณ์หรืออาหารว่างที่ต้องการ",
+      },
+      access: {
+        en: "Useful to mention: what you need, such as a step-free route, a lift, or door and bathroom measurements. Please leave out medical details.",
+        th: "ข้อมูลที่ควรระบุ ได้แก่ สิ่งที่ต้องการ เช่น เส้นทางที่ไม่มีขั้นบันได ลิฟต์ หรือขนาดประตูและห้องน้ำ โดยไม่ต้องระบุข้อมูลทางการแพทย์",
+      },
+      dining: {
+        en: "Useful to mention: the date, how many people, and any food you avoid. Please leave out medical details.",
+        th: "ข้อมูลที่ควรระบุ ได้แก่ วันที่ จำนวนคน และอาหารที่ไม่รับประทาน โดยไม่ต้องระบุข้อมูลทางการแพทย์",
+      },
+    },
     mailLong: { en: "This message is too long to hand to an email app. Your email app opens with the subject only: copy the message above and paste it in.", th: "ข้อความนี้ยาวเกินกว่าจะส่งต่อไปยังแอปอีเมลได้ แอปอีเมลจะเปิดขึ้นพร้อมหัวข้อเท่านั้น กรุณาคัดลอกข้อความด้านบนแล้ววางในอีเมล" },
-    mailHint: { en: "Your email app should open with the message. It is sent only when you press send there.", th: "แอปอีเมลจะเปิดขึ้นพร้อมข้อความ ข้อความจะถูกส่งเมื่อคุณกดส่งในแอปเท่านั้น" },
+    mailHint: { en: "Your email app should open with the message, and nothing goes to the hotel until you press send there. If no app opens, copy the message and email it to the address above.", th: "แอปอีเมลจะเปิดขึ้นพร้อมข้อความ และจะยังไม่มีข้อความใดไปถึงโรงแรมจนกว่าคุณจะกดส่งในแอป หากไม่มีแอปเปิดขึ้น กรุณาคัดลอกข้อความแล้วส่งอีเมลไปยังที่อยู่ด้านบน" },
     errEmail: { en: "Enter an email address such as name@example.com, or leave it empty.", th: "กรุณาระบุอีเมลให้ถูกต้อง เช่น name@example.com หรือเว้นว่างไว้" },
     errBoth: { en: "Give both dates, or leave both empty.", th: "กรุณาระบุทั้งสองวัน หรือเว้นว่างทั้งสองช่อง" },
     errOrder: { en: "Departure must be after arrival.", th: "วันเช็คเอาท์ต้องอยู่หลังวันเช็คอิน" },
@@ -389,45 +476,82 @@ export const privacyPage = {
       preview: true,
     },
     {
-      h: { en: "What the site collects", th: "ข้อมูลที่เว็บไซต์เก็บ" },
+      h: { en: "What this site does not have", th: "สิ่งที่เว็บไซต์นี้ไม่มี" },
       p: {
-        en: ["Nothing. There are no accounts, no analytics, no advertising tags and no cookies. The site has no server of its own that receives what you type."],
-        th: ["ไม่มีการเก็บข้อมูลใด ๆ ไม่มีบัญชีผู้ใช้ ไม่มีระบบวิเคราะห์การใช้งาน ไม่มีแท็กโฆษณา และไม่มีคุกกี้ เว็บไซต์นี้ไม่มีเซิร์ฟเวอร์ของตนเองที่รับข้อมูลที่คุณพิมพ์"],
+        en: [
+          "There are no accounts, no analytics, no advertising tags and no cookies. The enquiry helper has nothing behind it: this site has no server of its own to receive what you type.",
+          "Four things do involve information about your visit, and each is described below: choices kept in your own browser, the request your browser makes to the web host for every page, the stay details you choose to pass to the hotel's booking page, and the satellite view of the map, if you switch it on.",
+        ],
+        th: [
+          "เว็บไซต์นี้ไม่มีบัญชีผู้ใช้ ไม่มีระบบวิเคราะห์การใช้งาน ไม่มีแท็กโฆษณา และไม่มีคุกกี้ ตัวช่วยเรียบเรียงข้อความสอบถามไม่ได้เชื่อมต่อกับระบบใด เพราะเว็บไซต์นี้ไม่มีเซิร์ฟเวอร์ของตนเองที่รับข้อมูลที่คุณพิมพ์",
+          "มีสี่ส่วนที่เกี่ยวข้องกับข้อมูลการเข้าชมของคุณ ซึ่งอธิบายไว้ด้านล่าง ได้แก่ ตัวเลือกที่เก็บไว้ในเบราว์เซอร์ของคุณเอง คำขอที่เบราว์เซอร์ส่งไปยังผู้ให้บริการโฮสต์ทุกครั้งที่เปิดหน้าเว็บ รายละเอียดการเข้าพักที่คุณเลือกส่งต่อไปยังหน้าจองของโรงแรม และมุมมองดาวเทียมของแผนที่ หากคุณเปิดใช้",
+        ],
+      },
+      /* the wording for a build that has the satellite view switched off */
+      pOff: {
+        en: [
+          "There are no accounts, no analytics, no advertising tags and no cookies. The enquiry helper has nothing behind it: this site has no server of its own to receive what you type.",
+          "Three things do involve information about your visit, and each is described below: choices kept in your own browser, the request your browser makes to the web host for every page, and the stay details you choose to pass to the hotel's booking page.",
+        ],
+        th: [
+          "เว็บไซต์นี้ไม่มีบัญชีผู้ใช้ ไม่มีระบบวิเคราะห์การใช้งาน ไม่มีแท็กโฆษณา และไม่มีคุกกี้ ตัวช่วยเรียบเรียงข้อความสอบถามไม่ได้เชื่อมต่อกับระบบใด เพราะเว็บไซต์นี้ไม่มีเซิร์ฟเวอร์ของตนเองที่รับข้อมูลที่คุณพิมพ์",
+          "มีสามส่วนที่เกี่ยวข้องกับข้อมูลการเข้าชมของคุณ ซึ่งอธิบายไว้ด้านล่าง ได้แก่ ตัวเลือกที่เก็บไว้ในเบราว์เซอร์ของคุณเอง คำขอที่เบราว์เซอร์ส่งไปยังผู้ให้บริการโฮสต์ทุกครั้งที่เปิดหน้าเว็บ และรายละเอียดการเข้าพักที่คุณเลือกส่งต่อไปยังหน้าจองของโรงแรม",
+        ],
       },
     },
     {
-      h: { en: "What stays in your browser", th: "ข้อมูลที่อยู่ในเบราว์เซอร์ของคุณ" },
+      h: { en: "What is kept in your browser", th: "ข้อมูลที่เก็บไว้ในเบราว์เซอร์ของคุณ" },
       p: {
         en: [
-          "So that your choices survive a change of page or language, the site keeps your stay dates, number of adults, the ages of any children you add, the suite you last opened and your comparison choices in your browser's session storage. They never leave your device and are cleared when you close the tab.",
+          "So that your choices survive a change of page or language, the site keeps your stay dates, number of adults, the ages of any children you add, the suite you last opened and your comparison choices in your browser's session storage. The site does not send them anywhere by itself. They leave your device only when you choose to continue to the booking page, as described in the next section.",
+          "Browsers normally clear session storage when the tab is closed. A browser that restores closed tabs may bring the choices back with the tab.",
           "If you switch language, that one choice is remembered in your browser's local storage, so the site's main address opens in the same language next time. It stays on your device until you clear your browser data.",
-          "Text you type into the enquiry helper is never stored. It exists only on the page until you leave it.",
+          "Text you type into the enquiry helper is not stored. It exists only on the page, and is gone when you leave the page, reload it or change language. It goes nowhere unless you copy it or open it in your own email app.",
         ],
         th: [
-          "เพื่อให้ตัวเลือกของคุณยังอยู่เมื่อเปลี่ยนหน้าหรือเปลี่ยนภาษา เว็บไซต์จะเก็บวันเข้าพัก จำนวนผู้ใหญ่ อายุของเด็กที่ระบุไว้ ห้องสวีทที่เปิดดูล่าสุด และตัวเลือกในการเปรียบเทียบ ไว้ในพื้นที่จัดเก็บชั่วคราวของเบราว์เซอร์ ข้อมูลเหล่านี้ไม่ถูกส่งออกจากอุปกรณ์ของคุณ และจะถูกลบเมื่อปิดแท็บ",
+          "เพื่อให้ตัวเลือกของคุณยังอยู่เมื่อเปลี่ยนหน้าหรือเปลี่ยนภาษา เว็บไซต์จะเก็บวันเข้าพัก จำนวนผู้ใหญ่ อายุของเด็กที่ระบุไว้ ห้องสวีทที่เปิดดูล่าสุด และตัวเลือกในการเปรียบเทียบ ไว้ในพื้นที่จัดเก็บชั่วคราวของเบราว์เซอร์ เว็บไซต์ไม่ได้ส่งข้อมูลเหล่านี้ไปที่ใดเอง ข้อมูลจะออกจากอุปกรณ์ของคุณก็ต่อเมื่อคุณเลือกไปยังหน้าจอง ตามที่อธิบายในหัวข้อถัดไป",
+          "โดยปกติเบราว์เซอร์จะล้างพื้นที่จัดเก็บชั่วคราวเมื่อปิดแท็บ แต่เบราว์เซอร์ที่กู้คืนแท็บที่ปิดไปแล้วอาจนำตัวเลือกเหล่านี้กลับมาพร้อมกับแท็บ",
           "หากคุณสลับภาษา เว็บไซต์จะจำภาษาที่เลือกไว้ในพื้นที่จัดเก็บของเบราว์เซอร์ เพื่อให้หน้าแรกของเว็บไซต์เปิดเป็นภาษาเดิมในครั้งถัดไป ข้อมูลนี้อยู่ในอุปกรณ์ของคุณจนกว่าคุณจะล้างข้อมูลเบราว์เซอร์",
-          "ข้อความที่พิมพ์ในตัวช่วยเรียบเรียงข้อความสอบถามจะไม่ถูกจัดเก็บ และอยู่บนหน้าเว็บเท่านั้นจนกว่าคุณจะออกจากหน้า",
+          "ข้อความที่พิมพ์ในตัวช่วยเรียบเรียงข้อความสอบถามจะไม่ถูกจัดเก็บ ข้อความอยู่บนหน้าเว็บเท่านั้น และจะหายไปเมื่อออกจากหน้า โหลดหน้าใหม่ หรือเปลี่ยนภาษา ข้อความจะไม่ถูกส่งไปที่ใด เว้นแต่คุณจะคัดลอกหรือเปิดในแอปอีเมลของคุณเอง",
         ],
       },
     },
     {
-      h: { en: "When you leave for the booking page", th: "เมื่อคุณไปยังหน้าจอง" },
+      h: { en: "What is sent when you go to the booking page", th: "ข้อมูลที่ถูกส่งเมื่อคุณไปยังหน้าจอง" },
       p: {
         en: [
-          "Choosing to check availability opens the hotel's official booking page in a new tab. The link carries the number of adults, the ages of any children you added and, if you chose dates, your arrival date and number of nights, so that page can show them. Nothing else is passed.",
-          "From there on, the hotel and its booking provider handle your information under their own policies.",
+          "Choosing to check availability opens the hotel's official booking page in a new tab. The address of that page then carries the number of adults, the ages of any children you added and, if you chose dates, your arrival date and number of nights, so that the page can show them. For a party of more than {maxGuests} guests, only the dates are carried.",
+          "Nothing else is passed, and the link does not tell the hotel's website which page you came from. From there on, the hotel and its booking provider handle your information under their own policies.",
         ],
         th: [
-          "เมื่อเลือกตรวจสอบห้องว่าง หน้าจองทางการของโรงแรมจะเปิดขึ้นในแท็บใหม่ ลิงก์จะส่งจำนวนผู้ใหญ่ อายุของเด็กที่ระบุไว้ และหากเลือกวันที่ จะส่งวันเข้าพักและจำนวนคืนไปด้วย เพื่อให้หน้านั้นแสดงผลตามที่เลือก โดยไม่มีข้อมูลอื่นถูกส่งไป",
-          "หลังจากนั้น โรงแรมและผู้ให้บริการระบบจองจะดูแลข้อมูลของคุณตามนโยบายของตนเอง",
+          "เมื่อเลือกตรวจสอบห้องว่าง หน้าจองทางการของโรงแรมจะเปิดขึ้นในแท็บใหม่ ที่อยู่ของหน้านั้นจะมีจำนวนผู้ใหญ่ อายุของเด็กที่ระบุไว้ และหากเลือกวันที่ จะมีวันเข้าพักและจำนวนคืนด้วย เพื่อให้หน้านั้นแสดงผลตามที่เลือก หากผู้เข้าพักเกิน {maxGuests} ท่าน จะส่งเฉพาะวันที่เท่านั้น",
+          "ไม่มีข้อมูลอื่นถูกส่งไป และลิงก์ไม่ได้แจ้งเว็บไซต์ของโรงแรมว่าคุณมาจากหน้าใด หลังจากนั้น โรงแรมและผู้ให้บริการระบบจองจะดูแลข้อมูลของคุณตามนโยบายของตนเอง",
         ],
+      },
+    },
+    {
+      h: { en: "The map and its satellite view", th: "แผนที่และมุมมองดาวเทียม" },
+      p: {
+        en: [
+          "The street map on this site is drawn by the site itself from OpenStreetMap data and is served with the page. Moving it, zooming it and choosing a place on it ask nothing of any map service.",
+          "The map also has a satellite view. If you switch to it, your browser fetches the satellite images directly from {mapProvider}, a mapping company. {mapProvider} then receives what any website receives when it serves a picture: your IP address, your browser's details and which squares of the map you are looking at. This site does not tell it which page you are on. Nothing is asked of {mapProvider} unless you choose the satellite view, and the choice is not remembered: the map opens as the street map every time.",
+        ],
+        th: [
+          "แผนที่ถนนในเว็บไซต์นี้วาดขึ้นโดยเว็บไซต์เองจากข้อมูลของ OpenStreetMap และให้บริการพร้อมกับหน้าเว็บ การเลื่อน การซูม และการเลือกสถานที่บนแผนที่ ไม่มีการเรียกข้อมูลจากผู้ให้บริการแผนที่รายใด",
+          "แผนที่มีมุมมองดาวเทียมให้เลือกด้วย หากคุณสลับไปใช้มุมมองนี้ เบราว์เซอร์ของคุณจะโหลดภาพถ่ายดาวเทียมโดยตรงจาก {mapProvider} ซึ่งเป็นบริษัทผู้ให้บริการแผนที่ {mapProvider} จะได้รับข้อมูลแบบเดียวกับที่เว็บไซต์ใดก็ตามได้รับเมื่อส่งภาพให้ ได้แก่ หมายเลข IP รายละเอียดของเบราว์เซอร์ และส่วนของแผนที่ที่คุณกำลังดู เว็บไซต์นี้ไม่ได้แจ้งว่าคุณอยู่ที่หน้าใด จะไม่มีการเรียกข้อมูลจาก {mapProvider} เว้นแต่คุณจะเลือกมุมมองดาวเทียม และเว็บไซต์ไม่จำตัวเลือกนี้ไว้ แผนที่จะเปิดเป็นแผนที่ถนนทุกครั้ง",
+        ],
+      },
+      hOff: { en: "The map", th: "แผนที่" },
+      pOff: {
+        en: ["The street map on this site is drawn by the site itself from OpenStreetMap data and is served with the page. Moving it, zooming it and choosing a place on it ask nothing of any map service."],
+        th: ["แผนที่ถนนในเว็บไซต์นี้วาดขึ้นโดยเว็บไซต์เองจากข้อมูลของ OpenStreetMap และให้บริการพร้อมกับหน้าเว็บ การเลื่อน การซูม และการเลือกสถานที่บนแผนที่ ไม่มีการเรียกข้อมูลจากผู้ให้บริการแผนที่รายใด"],
       },
     },
     {
       h: { en: "Other places this site links to", th: "เว็บไซต์อื่นที่มีลิงก์ไปถึง" },
       p: {
-        en: ["Links to maps, the hotel's social pages and its own website open those services, which apply their own policies. The map on this site is an image and loads nothing from a map service. Fonts and photographs are served by this site itself."],
-        th: ["ลิงก์ไปยังแผนที่ หน้าโซเชียลของโรงแรม และเว็บไซต์ของโรงแรม จะเปิดบริการเหล่านั้นซึ่งมีนโยบายของตนเอง แผนที่ในเว็บไซต์นี้เป็นภาพนิ่งและไม่ได้โหลดข้อมูลจากผู้ให้บริการแผนที่ ส่วนแบบอักษรและภาพถ่ายให้บริการจากเว็บไซต์นี้เอง"],
+        en: ["Links to maps, the hotel's social pages and its own website open those services, which apply their own policies. Fonts and photographs are served by this site itself."],
+        th: ["ลิงก์ไปยังแผนที่ หน้าโซเชียลของโรงแรม และเว็บไซต์ของโรงแรม จะเปิดบริการเหล่านั้นซึ่งมีนโยบายของตนเอง ส่วนแบบอักษรและภาพถ่ายให้บริการจากเว็บไซต์นี้เอง"],
       },
     },
     {
@@ -455,7 +579,7 @@ export const termsPage = {
     en: "This website does not take bookings. Read how it hands you to the hotel's official booking page, what is passed on, and where prices and payment live.",
     th: "เว็บไซต์นี้ไม่ได้รับจองห้องพัก อ่านขั้นตอนการส่งต่อไปยังหน้าจองทางการของโรงแรม ข้อมูลที่ถูกส่งต่อ และแหล่งที่แสดงราคา การชำระเงิน และเงื่อนไขการยกเลิก",
   },
-  eyebrow: { en: "Booking terms", th: "เงื่อนไขการจอง" },
+  eyebrow: { en: "How booking works", th: "ขั้นตอนการจอง" },
   h1: { en: "How booking <em>works here.</em>", th: "ขั้นตอน<em>การจอง</em>" },
   lead: {
     en: "This website helps you choose. The hotel's own booking page is where a reservation is made.",
@@ -480,11 +604,13 @@ export const termsPage = {
       h: { en: "What is passed on", th: "ข้อมูลที่ถูกส่งต่อ" },
       p: {
         en: [
-          "The number of adults, the ages of any children you add and, if you choose dates, your arrival date and number of nights. The booking page was checked on {checked} and showed each of those details as entered.",
+          "The number of adults, the ages of any children you add and, if you choose dates, your arrival date and number of nights. The booking page was checked on {checked} and again on {bookingChecked}, and showed each of those details as entered.",
+          "On the second check the booking page took stays of up to {maxNights} nights and up to {maxGuests} guests in one search. For a longer stay or a larger party the planner does not shorten or drop anything: it offers the booking page itself, or an enquiry with your details filled in.",
           "Extra rooms and promo codes are entered on the booking page. You also choose the suite and rate there. Before paying, check that the dates, guests and room on that page are the ones you want.",
         ],
         th: [
-          "จำนวนผู้ใหญ่ อายุของเด็กที่ระบุไว้ และหากเลือกวันที่ จะรวมวันเข้าพักและจำนวนคืน หน้าจองได้รับการตรวจสอบเมื่อวันที่ {checked} และแสดงข้อมูลแต่ละรายการตรงตามที่ระบุ",
+          "จำนวนผู้ใหญ่ อายุของเด็กที่ระบุไว้ และหากเลือกวันที่ จะรวมวันเข้าพักและจำนวนคืน หน้าจองได้รับการตรวจสอบเมื่อวันที่ {checked} และอีกครั้งเมื่อวันที่ {bookingChecked} โดยแสดงข้อมูลแต่ละรายการตรงตามที่ระบุ",
+          "ในการตรวจสอบครั้งที่สอง หน้าจองรับการเข้าพักได้ไม่เกิน {maxNights} คืน และค้นหาได้ครั้งละไม่เกิน {maxGuests} ท่าน หากต้องการเข้าพักนานกว่าหรือมีผู้เข้าพักมากกว่านั้น ตัววางแผนการเข้าพักจะไม่ลดหรือตัดข้อมูลใดออก แต่จะเสนอให้ไปยังหน้าจองโดยตรง หรือเปิดหน้าสอบถามที่กรอกรายละเอียดให้แล้ว",
           "การเพิ่มห้อง การกรอกรหัสโปรโมชั่น และการเลือกประเภทห้องและราคา ทำในหน้าจองทั้งหมด ก่อนชำระเงิน ควรตรวจสอบวันที่ จำนวนผู้เข้าพัก และห้องพักในหน้านั้นให้ตรงกับที่ต้องการ",
         ],
       },
@@ -511,6 +637,117 @@ export const termsPage = {
       },
     },
   ],
+};
+
+/* The closing invitation on each inner page. Its first action is always the stay planner; `second` is the
+   one that fits the page. No page links to itself here. */
+export const closings = {
+  default: {
+    text: null, /* the home page's closing sentence */
+    label: { en: "Contact the hotel", th: "ติดต่อโรงแรม" }, path: "contact/",
+  },
+  suites: {
+    text: {
+      en: "Check your dates on the hotel's official booking page, or put two suites side by side first.",
+      th: "ตรวจสอบวันเข้าพักได้ที่หน้าจองทางการของโรงแรม หรือเปรียบเทียบห้องสวีทสองแบบก่อนตัดสินใจ",
+    },
+    label: { en: "Compare suites", th: "เปรียบเทียบห้องสวีท" }, path: "suites/compare/",
+  },
+  suite: {
+    text: {
+      en: "Check your dates on the hotel's official booking page, or ask the hotel about this suite first.",
+      th: "ตรวจสอบวันเข้าพักได้ที่หน้าจองทางการของโรงแรม หรือสอบถามโรงแรมเกี่ยวกับห้องนี้ก่อน",
+    },
+    label: { en: "Ask about this suite", th: "สอบถามเกี่ยวกับห้องนี้" }, path: "contact/?about=stay",
+  },
+  compare: {
+    text: {
+      en: "Check your dates on the hotel's official booking page, or look at each suite in full.",
+      th: "ตรวจสอบวันเข้าพักได้ที่หน้าจองทางการของโรงแรม หรือดูรายละเอียดของห้องสวีทแต่ละแบบ",
+    },
+    label: { en: "See all six suites", th: "ดูห้องสวีททั้ง 6 แบบ" }, path: "suites/",
+  },
+  dining: {
+    text: {
+      en: "Whether breakfast is included depends on the rate you choose. Check your dates, or ask the hotel about dining.",
+      th: "ราคาห้องจะรวมอาหารเช้าหรือไม่ขึ้นอยู่กับราคาที่เลือก ตรวจสอบวันเข้าพัก หรือสอบถามโรงแรมเรื่องห้องอาหาร",
+    },
+    label: { en: "Ask about dining", th: "สอบถามเรื่องห้องอาหาร" }, path: "contact/?about=dining",
+  },
+  facilities: {
+    text: {
+      en: "Check your dates on the hotel's official booking page, or ask the hotel about a facility first.",
+      th: "ตรวจสอบวันเข้าพักได้ที่หน้าจองทางการของโรงแรม หรือสอบถามโรงแรมเรื่องสิ่งอำนวยความสะดวกก่อน",
+    },
+    label: { en: "Ask the hotel", th: "สอบถามโรงแรม" }, path: "contact/",
+  },
+  location: {
+    text: {
+      en: "Check your dates on the hotel's official booking page, or open directions to the hotel.",
+      th: "ตรวจสอบวันเข้าพักได้ที่หน้าจองทางการของโรงแรม หรือเปิดเส้นทางมายังโรงแรม",
+    },
+    label: { en: "Directions in Google Maps", th: "เส้นทางใน Google Maps" }, directions: true,
+  },
+  gallery: {
+    text: {
+      en: "Seen a suite you like? Check your dates, or compare the six suites side by side.",
+      th: "เจอห้องที่ถูกใจแล้วหรือยัง ตรวจสอบวันเข้าพัก หรือเปรียบเทียบห้องสวีททั้ง 6 แบบ",
+    },
+    label: { en: "Compare suites", th: "เปรียบเทียบห้องสวีท" }, path: "suites/compare/",
+  },
+  offers: {
+    text: {
+      en: "The rate for your dates is on the hotel's official booking page. For a long stay or a group, ask the hotel.",
+      th: "ราคาสำหรับวันที่ต้องการแสดงอยู่ในหน้าจองทางการของโรงแรม หากเข้าพักระยะยาวหรือเป็นกลุ่ม กรุณาสอบถามโรงแรม",
+    },
+    label: { en: "Ask about a long stay", th: "สอบถามเรื่องการเข้าพักระยะยาว" }, path: "contact/?about=long",
+  },
+  contact: {
+    text: {
+      en: "Ready to look at dates? The hotel's official booking page shows its rates and availability.",
+      th: "พร้อมเลือกวันเข้าพักแล้วหรือยัง หน้าจองทางการของโรงแรมแสดงราคาและห้องว่าง",
+    },
+    label: { en: "Compare suites", th: "เปรียบเทียบห้องสวีท" }, path: "suites/compare/",
+  },
+};
+
+/* Before you book: one compact block, shown on suite pages and the rates page. {checkIn} and {checkOut}
+   are filled from hotel.bookingPageNotes, the record the questions page also reads. */
+export const essentialsBlock = {
+  head: { en: "Before you book", th: "ก่อนจองห้องพัก" },
+  checkIn: { en: "Check-in", th: "เช็คอิน" },
+  checkInValue: { en: "From {checkIn}", th: "ตั้งแต่ {checkIn} น." },
+  checkOut: { en: "Check-out", th: "เช็คเอาท์" },
+  checkOutValue: { en: "Until {checkOut}", th: "ภายใน {checkOut} น." },
+  breakfast: { en: "Breakfast", th: "อาหารเช้า" },
+  breakfastValue: {
+    en: "Depends on the rate. Each rate on the booking page lists what it includes.",
+    th: "ขึ้นอยู่กับราคาที่เลือก แต่ละราคาในหน้าจองจะแสดงสิ่งที่รวมอยู่ในราคา",
+  },
+  children: { en: "Children and extra beds", th: "เด็กและเตียงเสริม" },
+  childrenValue: {
+    en: "The booking page states \"Free stay for children under 7\". Other child and extra-bed rules are not published.",
+    th: "หน้าจองระบุว่า \"พักฟรีสำหรับเด็กอายุต่ำกว่า 7 ปี\" ส่วนเงื่อนไขอื่นเรื่องเด็กและเตียงเสริมไม่ได้เผยแพร่ไว้",
+  },
+  terms: { en: "Payment and cancellation", th: "การชำระเงินและการยกเลิก" },
+  termsValue: {
+    en: "Shown with each rate on the booking page, before you confirm.",
+    th: "แสดงไว้กับแต่ละราคาในหน้าจอง ก่อนยืนยันการจอง",
+  },
+  source: {
+    en: "Check-in and check-out times are those shown in the booking page's summary on {date}.",
+    th: "เวลาเช็คอินและเช็คเอาท์เป็นไปตามที่แสดงในสรุปการจองของหน้าจอง ณ วันที่ {date}",
+  },
+  allQuestions: { en: "All questions", th: "คำถามทั้งหมด" },
+};
+
+export const taxiCardText = {
+  label: { en: "For your taxi driver", th: "สำหรับแสดงให้คนขับแท็กซี่" },
+  note: {
+    en: "Show this to your driver. The sign above the entrance reads Grand Diamond Plaza Suites Hotel.",
+    th: "แสดงที่อยู่นี้ให้คนขับดู ป้ายเหนือทางเข้าเขียนว่า Grand Diamond Plaza Suites Hotel",
+  },
+  copy: { en: "Copy the Thai address", th: "คัดลอกที่อยู่ภาษาไทย" },
 };
 
 export const notFoundPage = {

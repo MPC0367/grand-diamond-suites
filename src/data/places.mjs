@@ -7,7 +7,8 @@
    or claimed: where the hotel itself gives one, it is quoted as the hotel's
    wording in `hotelSays`.
 
-   Wording: `what` says only what the source supports. `source` names where
+   Wording: `what` says only what the source supports. `brief` is one short line taken from it, for the
+   card a marker shows on the map. `source` names where
    the description comes from when it is not the hotel's attractions page. */
 
 export const PLACES_CHECKED = "2026-10-08";
@@ -17,6 +18,7 @@ export const places = [
   {
     id: "platinum", kind: "shopping", lat: 13.7500065, lon: 100.5393912, osm: "way/31141613",
     name: { en: "Platinum Fashion Mall", th: "แพลทินัม แฟชั่นมอลล์" },
+    brief: { en: "A fashion mall of small clothing and accessory shops, beside the hotel.", th: "ศูนย์การค้าแฟชั่นที่รวมร้านเสื้อผ้าและเครื่องประดับ อยู่ติดกับโรงแรม" },
     what: {
       en: "A fashion mall of small shops selling clothing and accessories, retail and wholesale. Its building stands beside the hotel on Phetchaburi Road.",
       th: "ศูนย์การค้าแฟชั่นที่รวมร้านเสื้อผ้าและเครื่องประดับ ทั้งขายปลีกและขายส่ง อาคารอยู่ติดกับโรงแรมบนถนนเพชรบุรี",
@@ -26,6 +28,7 @@ export const places = [
   {
     id: "phenix", kind: "shopping", lat: 13.7504134, lon: 100.5372772, osm: "way/31141565",
     name: { en: "Phenix, the former Pantip Plaza", th: "ฟีนิกซ์ (พันธุ์ทิพย์พลาซ่าเดิม)" },
+    brief: { en: "The building long known as Pantip Plaza, reopened as Phenix in June 2024.", th: "อาคารที่รู้จักกันในชื่อพันธุ์ทิพย์พลาซ่า เปิดใหม่ในชื่อฟีนิกซ์เมื่อเดือนมิถุนายน 2024" },
     what: {
       en: "The building many visitors still know as Pantip Plaza. Its operator reopened it in June 2024 under the name Phenix, with food wholesale and a food lounge. The hotel's own website still uses the old name.",
       th: "อาคารที่หลายคนยังรู้จักในชื่อพันธุ์ทิพย์พลาซ่า ผู้ดำเนินการเปิดให้บริการอีกครั้งในเดือนมิถุนายน 2024 ภายใต้ชื่อฟีนิกซ์ โดยเป็นศูนย์ค้าส่งอาหารและฟู้ดเลานจ์ ส่วนเว็บไซต์ของโรงแรมยังใช้ชื่อเดิม",
@@ -36,6 +39,7 @@ export const places = [
   {
     id: "pratunam-market", kind: "shopping", lat: 13.7522704, lon: 100.5405377, osm: "way/1363612934",
     name: { en: "Pratunam Market", th: "ตลาดประตูน้ำ" },
+    brief: { en: "A local market area. The hotel describes fashion stalls and street food.", th: "ย่านตลาดท้องถิ่น โรงแรมบรรยายว่ามีแผงสินค้าแฟชั่นและร้านอาหารริมทาง" },
     what: {
       en: "A local market area. The hotel describes fashion stalls and street food vendors.",
       th: "ย่านตลาดท้องถิ่น โรงแรมบรรยายว่ามีแผงขายสินค้าแฟชั่นและร้านอาหารริมทาง",
@@ -45,6 +49,7 @@ export const places = [
   {
     id: "centralworld", kind: "shopping", lat: 13.7465769, lon: 100.5390414, osm: "way/157482067",
     name: { en: "CentralWorld", th: "เซ็นทรัลเวิลด์" },
+    brief: { en: "A large shopping centre at Ratchaprasong.", th: "ศูนย์การค้าขนาดใหญ่ย่านราชประสงค์" },
     what: {
       en: "A large shopping centre at Ratchaprasong. The hotel mentions designer brands, restaurants, cinemas and family entertainment here and at Siam Paragon.",
       th: "ศูนย์การค้าขนาดใหญ่ย่านราชประสงค์ โรงแรมกล่าวถึงแบรนด์ดีไซเนอร์ ร้านอาหาร โรงภาพยนตร์ และความบันเทิงสำหรับครอบครัว ทั้งที่นี่และที่สยามพารากอน",
@@ -54,6 +59,7 @@ export const places = [
   {
     id: "siam-paragon", kind: "shopping", lat: 13.7467785, lon: 100.534954, osm: "way/781138575",
     name: { en: "Siam Paragon", th: "สยามพารากอน" },
+    brief: { en: "A shopping centre on Rama I Road.", th: "ศูนย์การค้าบนถนนพระรามที่ 1" },
     what: {
       en: "A shopping centre on Rama I Road in Pathum Wan.",
       th: "ศูนย์การค้าบนถนนพระรามที่ 1 เขตปทุมวัน",
@@ -66,6 +72,7 @@ export const places = [
   {
     id: "ratchaprarop", kind: "transport", lat: 13.7551065, lon: 100.5421238, osm: "node/6711026524",
     name: { en: "Ratchaprarop station, Airport Rail Link", th: "สถานีราชปรารภ แอร์พอร์ต เรล ลิงก์" },
+    brief: { en: "Airport Rail Link station, on the line to Suvarnabhumi Airport.", th: "สถานีแอร์พอร์ต เรล ลิงก์ บนเส้นทางไปสนามบินสุวรรณภูมิ" },
     what: {
       en: "The Airport Rail Link station the hotel names. Trains run between Suvarnabhumi Airport and Phaya Thai, and this is the stop before Phaya Thai.",
       th: "สถานีแอร์พอร์ต เรล ลิงก์ที่โรงแรมกล่าวถึง รถไฟให้บริการระหว่างสนามบินสุวรรณภูมิกับพญาไท โดยสถานีนี้อยู่ก่อนถึงพญาไทหนึ่งสถานี",
@@ -75,6 +82,7 @@ export const places = [
   {
     id: "siam", kind: "transport", lat: 13.7456236, lon: 100.5342199, osm: "node/1692209237",
     name: { en: "Siam station, BTS", th: "สถานีสยาม รถไฟฟ้า BTS" },
+    brief: { en: "BTS station where the Sukhumvit and Silom lines meet.", th: "สถานีรถไฟฟ้า BTS จุดเชื่อมต่อสายสุขุมวิทและสายสีลม" },
     what: {
       en: "The interchange between the BTS Sukhumvit and Silom lines.",
       th: "สถานีเชื่อมต่อระหว่างรถไฟฟ้า BTS สายสุขุมวิทและสายสีลม",
@@ -85,6 +93,7 @@ export const places = [
   {
     id: "ratchathewi", kind: "transport", lat: 13.7518605, lon: 100.5315534, osm: "node/5388611982",
     name: { en: "Ratchathewi station, BTS", th: "สถานีราชเทวี รถไฟฟ้า BTS" },
+    brief: { en: "BTS station on the Sukhumvit Line, one stop north of Siam.", th: "สถานีรถไฟฟ้า BTS สายสุขุมวิท ถัดจากสถานีสยามไปทางเหนือหนึ่งสถานี" },
     what: {
       en: "The BTS station the hotel names, on the Sukhumvit Line. Siam is the next stop to the south.",
       th: "สถานีรถไฟฟ้า BTS ที่โรงแรมกล่าวถึง อยู่บนสายสุขุมวิท สถานีถัดไปทางทิศใต้คือสยาม",
@@ -94,6 +103,7 @@ export const places = [
   {
     id: "phaya-thai", kind: "transport", lat: 13.7569644, lon: 100.5338214, osm: "node/5388610344",
     name: { en: "Phaya Thai station, BTS and Airport Rail Link", th: "สถานีพญาไท รถไฟฟ้า BTS และแอร์พอร์ต เรล ลิงก์" },
+    brief: { en: "BTS station, and the city end of the Airport Rail Link.", th: "สถานีรถไฟฟ้า BTS และสถานีปลายทางฝั่งเมืองของแอร์พอร์ต เรล ลิงก์" },
     what: {
       en: "Where the BTS Sukhumvit Line meets the Airport Rail Link, whose city end is here.",
       th: "จุดเชื่อมต่อระหว่างรถไฟฟ้า BTS สายสุขุมวิทกับแอร์พอร์ต เรล ลิงก์ ซึ่งมีสถานีปลายทางฝั่งเมืองอยู่ที่นี่",
@@ -106,6 +116,7 @@ export const places = [
   {
     id: "erawan", kind: "culture", lat: 13.7443205, lon: 100.5404211, osm: "node/373104218",
     name: { en: "Erawan Shrine", th: "ศาลพระพรหมเอราวัณ" },
+    brief: { en: "A shrine at the Ratchaprasong crossing.", th: "ศาลบริเวณสี่แยกราชประสงค์" },
     what: {
       en: "A shrine at the Ratchaprasong crossing. The hotel describes visitors paying respect and traditional Thai dance performances.",
       th: "ศาลบริเวณสี่แยกราชประสงค์ โรงแรมบรรยายว่ามีผู้มาสักการะและมีการแสดงนาฏศิลป์ไทย",
@@ -115,6 +126,7 @@ export const places = [
   {
     id: "bacc", kind: "culture", lat: 13.746778, lon: 100.5302625, osm: "way/48966995",
     name: { en: "Bangkok Art and Culture Centre", th: "หอศิลปวัฒนธรรมแห่งกรุงเทพมหานคร" },
+    brief: { en: "An art centre on Rama I Road.", th: "หอศิลป์บนถนนพระรามที่ 1" },
     what: {
       en: "An art centre on Rama I Road in Pathum Wan.",
       th: "หอศิลป์บนถนนพระรามที่ 1 เขตปทุมวัน",
@@ -125,6 +137,7 @@ export const places = [
   {
     id: "jim-thompson", kind: "culture", lat: 13.7492268, lon: 100.5282811, osm: "way/341577338",
     name: { en: "Jim Thompson House Museum", th: "พิพิธภัณฑ์บ้านจิม ทอมป์สัน" },
+    brief: { en: "A museum on Soi Kasemsan 2.", th: "พิพิธภัณฑ์ในซอยเกษมสันต์ 2" },
     what: {
       en: "A museum on Soi Kasemsan 2 in Pathum Wan.",
       th: "พิพิธภัณฑ์ในซอยเกษมสันต์ 2 เขตปทุมวัน",

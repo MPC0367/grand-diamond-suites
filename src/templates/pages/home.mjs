@@ -2,7 +2,7 @@
    selector, the address, dining, facilities, a few photographs, the
    essentials and the closing invitation. */
 import { html, raw } from "../../lib/html.mjs";
-import { icon } from "../icons.mjs";
+import { icon, KIND_ICON } from "../icons.mjs";
 import { pic, shot, planner, bookButton, bookingUrl, arrowLink, sectionHead, eyebrow, finder, faqList, mapPlate, hoursTable, addressCard, srcsetOf, newTab, newTabNote } from "../components.mjs";
 import { home as T } from "../../content/home.mjs";
 import { suites } from "../../data/suites.mjs";
@@ -45,13 +45,15 @@ export const homeDef = {
     <h1 class="display" id="hero-title">${marked(c, T.hero.title)}</h1>
     <p class="hero__sub">${c.l(T.hero.sub)}</p>
     <div class="hero__actions">
-      <a class="btn btn--ink" href="${bookingUrl(c)}" target="_blank" rel="noopener noreferrer" data-open-planner data-prefer-dock data-hero-cta>${c.t("checkAvailability")}${newTabNote(c)}</a>
+      <a class="btn btn--ink" href="#plan" data-prefer-dock data-hero-cta>${c.t("checkDates")}${icon("down")}</a>
       <a class="btn btn--line" href="#find-your-space">${c.l(T.hero.explore)}${icon("arrow")}</a>
     </div>
+    <p class="hero__more">${arrowLink(c, c.href("suites/compare/"), c.l(T.hero.compare))}</p>
   </div>
 </section>`;
 
-    const dock = html`<section class="planner-zone">
+    /* the one stay planner on this page: the opening button and the phone bar both lead here */
+    const dock = html`<section class="planner-zone" id="plan" tabindex="-1">
   <div class="wrap" data-dock>${planner(c, { id: "hp" })}</div>
 </section>`;
 
@@ -98,14 +100,14 @@ export const homeDef = {
       side: arrowLink(c, c.href("location/"), c.l(T.address.explore)),
     })}
     <div class="split split--map">
-      <div class="split__media reveal">${mapPlate(c, near, { interactive: false })}</div>
+      <div class="split__media reveal">${mapPlate(c, near)}</div>
       <div class="split__body reveal" data-d="1">
         ${addressCard(c, { id: "home-addr" })}
         <div class="near-block">
           <h3 class="label">${c.l(T.address.nearHead)}</h3>
-          <ol class="near">
-            ${near.map((p, i) => html`<li data-near="${p.id}"><span class="near__n" aria-hidden="true">${i + 1}</span><b>${c.l(p.name)}</b><span>${placeDistance(c, p)}</span></li>`)}
-          </ol>
+          <ul class="near">
+            ${near.map((p) => html`<li data-near="${p.id}"><span class="near__n" aria-hidden="true">${icon(KIND_ICON[p.kind])}</span><b>${c.l(p.name)}</b><span>${placeDistance(c, p)}</span></li>`)}
+          </ul>
           <p class="small muted">${c.t("straightNote")}</p>
         </div>
       </div>
@@ -137,10 +139,9 @@ export const homeDef = {
       ${shot(c, "hotel-pool-loungers", { group: "home", sizes: "(min-width: 900px) 56vw, 100vw", cls: "reveal" })}
       ${shot(c, "hotel-fitness-centre", { group: "home", sizes: "(min-width: 900px) 40vw, 100vw", cls: "reveal" })}
     </div>
-    <ul class="fac-list">
-      ${c.hotel.facilities.map((f) => html`<li>${icon(f.icon)}<div><b>${c.l(f.name)}</b>${f.text ? html`<span>${c.l(f.text)}</span>` : ""}</div></li>`)}
+    <ul class="ticks ticks--3 fac-names">
+      ${c.hotel.facilities.map((f) => html`<li>${c.l(f.name)}</li>`)}
     </ul>
-    <p class="statement statement--gap">${marked(c, T.facilities.green)}</p>
   </div>
 </section>`;
 
@@ -175,7 +176,7 @@ export const homeDef = {
       <h2 class="closing__title" id="closing-title">${marked(c, T.closing.title)}</h2>
       <p>${c.l(T.closing.text)}</p>
       <div class="closing__actions">
-        ${bookButton(c, { cls: "btn btn--paper", iconName: "out" })}
+        ${bookButton(c, { cls: "btn btn--paper" })}
         <a class="btn btn--line-light" href="${c.href("contact/")}">${c.l(T.closing.contact)}</a>
       </div>
     </div>

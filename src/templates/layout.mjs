@@ -1,17 +1,47 @@
 /* The document shell every page shares. */
+import { createHash } from "node:crypto";
 import { html, raw, e } from "../lib/html.mjs";
 import { conceptStrip, header, menuDialog, plannerDialog, viewerDialog, footer, mobileBar } from "./components.mjs";
+import { suiteList } from "../data/suites.mjs";
 
 /** Strings the browser script needs, in the page's language. */
 function clientStrings(c) {
   const keys = [
-    "msgNeedBoth", "msgPast", "msgOrder", "msgLong", "msgInvalid", "msgAdjusted", "msgNights", "msgNight", "to",
+    "msgNeedBoth", "msgNeedIn", "msgNeedOut", "msgPast", "msgOrder", "msgLong", "msgParty", "msgInvalid", "msgAdjusted", "msgNights", "msgNight", "to",
     "adultsOne", "adultsMany", "childrenOne", "childrenMany", "msgAges", "photoOf", "copied", "copyFailed", "pause", "play", "showing", "photosShown",
     "sep", "stop", "msgStay",
+    "recoverNoteLong", "recoverNoteParty", "recoverNoteAsk", "notSelected", "datesPartial", "datesRange", "nightsOne", "nightsMany",
+    "agedList", "agesNeeded", "and", "ageUnder1Short", "ageYears", "msgCleared", "fitOver", "fitOthers", "fitRooms", "photoFailed",
   ];
   const out = {};
   for (const k of keys) out[k] = c.t(k);
   return out;
+}
+
+/* The one script written into the page itself. It marks the page as scripted before anything is drawn,
+   and takes the mark back if the main script never arrives, so the plain version of every control returns. */
+const HEAD_SCRIPT = '(function(d){var h=d.documentElement;h.classList.remove("no-js");h.classList.add("js");try{if(!matchMedia("(prefers-reduced-motion: reduce)").matches)h.classList.add("anim")}catch(e){}addEventListener("load",function(){if(!window.__gd)h.className="no-js"})})(document)';
+const sha = (text) => "'sha256-" + createHash("sha256").update(text).digest("base64") + "'";
+
+/** What a page may load and run. Everything comes from the site itself: one stylesheet, one script file,
+    the script above (named by its hash), fonts and pictures. Nothing is fetched from anywhere else, and
+    the only place a form on these pages may ever go is the hotel's own booking page. The one exception is
+    a page that carries the neighbourhood map: it may also load pictures from the satellite imagery service
+    named in the site's settings, which the script asks for only once a visitor chooses that view. Delivered in the
+    page because the preview's host sets no headers; a production host should send it as a header and
+    add frame-ancestors, which a page cannot set for itself. */
+export function contentPolicy(c, { inline = HEAD_SCRIPT } = {}) {
+  return [
+    "default-src 'self'",
+    "script-src 'self' " + sha(inline),
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:" + (c.flags && c.flags.map && c.config.map.satellite.on ? " " + new URL(c.config.map.satellite.url).origin : ""),
+    "font-src 'self'",
+    "connect-src 'self'",
+    "form-action 'self' https://" + c.hotel.booking.allowedHost,
+    "base-uri 'self'",
+    "object-src 'none'",
+  ].join("; ");
 }
 
 export function layout(c, { main, viewer = null, preloadImage = null, bodyClass = "", jsonld = null }) {
@@ -24,7 +54,10 @@ export function layout(c, { main, viewer = null, preloadImage = null, bodyClass 
       page: c.hotel.booking.page[c.lang], host: c.hotel.booking.allowedHost,
       maxNights: c.hotel.booking.maxNights, maxAdults: c.hotel.booking.maxAdults,
       maxChildren: c.hotel.booking.maxChildren, maxChildAge: c.hotel.booking.maxChildAge,
+      maxGuests: c.hotel.booking.maxGuests,
     },
+    /* on a suite page the planner can point a larger party at the suites listed for more guests */
+    ...(/^suites\/[a-z-]+-suite\/$/.test(p.path) ? { suites: suiteList.map((s) => ({ s: s.slug, n: c.l(s.name), o: s.occupancy, h: c.href(`suites/${s.slug}/`) })) } : {}),
     t: clientStrings(c),
     viewer: viewer || {},
     mediaBase: c.asset("media/"),
@@ -37,6 +70,7 @@ export function layout(c, { main, viewer = null, preloadImage = null, bodyClass 
   return "<!DOCTYPE html>\n" + html`<html lang="${c.lang}" class="no-js">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="${contentPolicy(c)}">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${title}</title>
 <meta name="description" content="${p.description}">
@@ -55,11 +89,16 @@ ${c.config.origin ? html`<meta property="og:image" content="${c.config.origin}${
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">` : ""}
+${preview && c.config.shareOrigin ? html`<meta property="og:image" content="${c.config.shareOrigin}${c.config.basePath}assets/img/social-card-concept-${c.lang}.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="${c.t("shareAlt")}">
+<meta name="twitter:card" content="summary_large_image">` : ""}
 <link rel="icon" href="${c.asset("img/favicon.png")}" type="image/png">
 ${fonts.map((f) => html`<link rel="preload" href="${c.asset("fonts/" + f)}" as="font" type="font/woff2" crossorigin>`)}
 ${preloadImage ? html`<link rel="preload" as="image" imagesrcset="${preloadImage.srcset}" imagesizes="${preloadImage.sizes}" type="image/avif" fetchpriority="high">` : ""}
 <link rel="stylesheet" href="${c.asset("css/site.css")}?v=${c.stamp}">
-<script>(function(d){var h=d.documentElement;h.classList.remove("no-js");h.classList.add("js");try{if(!matchMedia("(prefers-reduced-motion: reduce)").matches)h.classList.add("anim")}catch(e){}})(document)</script>
+<script>${raw(HEAD_SCRIPT)}</script>
 ${jsonld ? html`<script type="application/ld+json">${raw(JSON.stringify(jsonld).replace(/</g, "\\u003c"))}</script>` : ""}
 </head>
 <body${bodyClass ? raw(` class="${e(bodyClass)}"`) : ""}>
@@ -75,7 +114,7 @@ ${menuDialog(c)}
 ${plannerDialog(c)}
 ${viewer ? viewerDialog(c) : ""}
 <script type="application/json" id="boot">${raw(JSON.stringify(boot).replace(/</g, "\\u003c"))}</script>
-<script src="${c.asset("js/site.js")}?v=${c.stamp}" defer onerror="document.documentElement.className='no-js'"></script>
+<script src="${c.asset("js/site.js")}?v=${c.stamp}" defer></script>
 </body>
 </html>
 `;
