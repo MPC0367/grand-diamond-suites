@@ -595,7 +595,10 @@ if (runs("behaviour")) {
     expect(!(await shown(page)), "opening: gone within three seconds");
     await page.goto(BASE + "en/suites/", { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(250);
-    expect(!(await shown(page)) && !(await page.evaluate(() => document.documentElement.classList.contains("intro"))), "opening: plays only once a visit (not again on the next page)");
+    expect(!(await shown(page)) && !(await page.evaluate(() => document.documentElement.classList.contains("intro"))), "opening: not again on the next page of the visit");
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(250);
+    expect((await shown(page)) && !(await page.evaluate(() => !!document.querySelector(".intro-spark"))), "opening: plays again on a reload (and has no sparkle; the shine ends it)");
     await ctx.close();
     for (const [label, opts, init] of [["with reduced motion", { reducedMotion: "reduce" }, null], ["without JavaScript", { javaScriptEnabled: false }, null], ["with storage refused", {}, () => { const deny = { get() { throw new Error("denied"); } }; try { Object.defineProperty(window, "sessionStorage", deny); } catch (e) {} }]]) {
       const c2 = await newContext({ viewport: { width: 1280, height: 800 }, ...opts });

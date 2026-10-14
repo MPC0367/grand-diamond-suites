@@ -4,13 +4,13 @@ import { html, raw, e } from "../lib/html.mjs";
 import { conceptStrip, header, menuDialog, plannerDialog, viewerDialog, footer, mobileBar } from "./components.mjs";
 import { suiteList } from "../data/suites.mjs";
 
-/** The opening, once a visit: the logo's diamond drawn facet by facet, then catching the light, and the
-    name writing itself. Hidden from assistive technology and never in the way of the pointer; the head
+/** The opening, on arrival and on a reload: the logo's diamond drawn facet by facet, then catching the light,
+    and the name writing itself. Hidden from assistive technology and never in the way of the pointer; the head
     script decides whether it shows, and the stylesheet lifts it on a fixed clock. */
 function intro() {
   return raw(`<div class="intro-screen" aria-hidden="true">
 <div class="intro-mark">
-<svg class="intro-gem" viewBox="-6 -10 112 66" focusable="false"><defs><linearGradient id="intro-soft"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><mask id="intro-shine" maskUnits="userSpaceOnUse" x="-6" y="-10" width="112" height="66"><rect class="intro-band" x="-46" y="-12" width="30" height="76" fill="url(#intro-soft)"/></mask></defs><path class="intro-face" mask="url(#intro-shine)" d="M22 2H78L94 17L50 53L6 17Z"/><g class="intro-lines"><path pathLength="1" d="M22 2H78L94 17L50 53L6 17Z"/><path pathLength="1" d="M6 17H94"/><path pathLength="1" d="M22 2L27 17L50 53"/><path pathLength="1" d="M78 2L73 17L50 53"/></g><g class="intro-glow" mask="url(#intro-shine)"><path d="M22 2H78L94 17L50 53L6 17Z"/><path d="M6 17H94"/><path d="M22 2L27 17L50 53"/><path d="M78 2L73 17L50 53"/></g><path class="intro-spark" d="M88-8L89.7-3.2 94.5-1.5 89.7.2 88 5 86.3.2 81.5-1.5 86.3-3.2Z"/></svg>
+<svg class="intro-gem" viewBox="-6 -10 112 66" focusable="false"><defs><linearGradient id="intro-soft"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><mask id="intro-shine" maskUnits="userSpaceOnUse" x="-6" y="-10" width="112" height="66"><rect class="intro-band" x="-46" y="-12" width="30" height="76" fill="url(#intro-soft)"/></mask></defs><path class="intro-face" mask="url(#intro-shine)" d="M22 2H78L94 17L50 53L6 17Z"/><g class="intro-lines"><path pathLength="1" d="M22 2H78L94 17L50 53L6 17Z"/><path pathLength="1" d="M6 17H94"/><path pathLength="1" d="M22 2L27 17L50 53"/><path pathLength="1" d="M78 2L73 17L50 53"/></g><g class="intro-glow" mask="url(#intro-shine)"><path d="M22 2H78L94 17L50 53L6 17Z"/><path d="M6 17H94"/><path d="M22 2L27 17L50 53"/><path d="M78 2L73 17L50 53"/></g></svg>
 <svg class="intro-word" viewBox="0 0 1000 132" lang="en" focusable="false"><text x="500" y="104" text-anchor="middle" textLength="992" lengthAdjust="spacingAndGlyphs"><tspan style="--i:0">G</tspan><tspan style="--i:1">r</tspan><tspan style="--i:2">a</tspan><tspan style="--i:3">n</tspan><tspan style="--i:4">d</tspan> <tspan style="--i:5">D</tspan><tspan style="--i:6">i</tspan><tspan style="--i:7">a</tspan><tspan style="--i:8">m</tspan><tspan style="--i:9">o</tspan><tspan style="--i:10">n</tspan><tspan style="--i:11">d</tspan></text></svg>
 <p class="intro-sub" lang="en">Suites Hotel</p>
 </div>
@@ -33,7 +33,7 @@ function clientStrings(c) {
 
 /* The one script written into the page itself. It marks the page as scripted before anything is drawn,
    and takes the mark back if the main script never arrives, so the plain version of every control returns. */
-const HEAD_SCRIPT = '(function(d){var h=d.documentElement;h.classList.remove("no-js");h.classList.add("js");try{if(!matchMedia("(prefers-reduced-motion: reduce)").matches)h.classList.add("anim")}catch(e){}try{if(h.classList.contains("anim")&&!sessionStorage.getItem("gd:intro")){sessionStorage.setItem("gd:intro","1");h.classList.add("intro");var g=function(){h.classList.add("intro-go")};setTimeout(g,350);if(d.fonts)d.fonts.load(\'400 1em "Newsreader"\').then(g,g)}}catch(e){}addEventListener("load",function(){if(!window.__gd)h.className="no-js"})})(document)';
+const HEAD_SCRIPT = '(function(d){var h=d.documentElement;h.classList.remove("no-js");h.classList.add("js");try{if(!matchMedia("(prefers-reduced-motion: reduce)").matches)h.classList.add("anim")}catch(e){}try{var n=performance.getEntriesByType&&performance.getEntriesByType("navigation")[0],r=n?n.type==="reload":!!(performance.navigation&&performance.navigation.type===1);if(h.classList.contains("anim")&&(r||!sessionStorage.getItem("gd:intro"))){sessionStorage.setItem("gd:intro","1");h.classList.add("intro");var g=function(){h.classList.add("intro-go")};setTimeout(g,350);if(d.fonts)d.fonts.load(\'400 1em "Newsreader"\').then(g,g)}}catch(e){}addEventListener("load",function(){if(!window.__gd)h.className="no-js"})})(document)';
 const sha = (text) => "'sha256-" + createHash("sha256").update(text).digest("base64") + "'";
 
 /** What a page may load and run. Everything comes from the site itself: one stylesheet, one script file,
