@@ -419,6 +419,49 @@ dialog::backdrop { background: rgba(23, 35, 41, .55); }
 }
 .close-btn svg { width: 20px; height: 20px; }
 
+/* === Opening, once a visit ===============================================
+   The diamond is drawn facet by facet and catches the light while the name writes itself; then the
+   screen is wiped away upward. Nothing fades: text is either shown at full strength or not at all. Shown only when the head script marks the page (scripted, motion allowed, first page of the
+   visit). It never takes the pointer, it is hidden from assistive technology, and it lifts on a fixed
+   clock here in the stylesheet, so nothing waits on it: about two seconds, never more than three. */
+.intro-screen { display: none; }
+.intro .intro-screen {
+  display: grid; place-items: center; position: fixed; inset: 0; z-index: 400; background: var(--canvas); pointer-events: none;
+  animation: intro-out .2s linear 2.8s forwards;
+}
+.intro-go .intro-screen { animation: intro-out .55s cubic-bezier(.7, 0, .2, 1) 1.75s forwards; }
+.intro-mark { display: grid; justify-items: center; gap: clamp(14px, 2.6vw, 24px); width: min(78vw, 500px); }
+.intro-go .intro-mark { animation: intro-lift .45s var(--ease) 1.75s forwards; }
+.intro-gem { width: clamp(72px, 14vw, 112px); height: auto; overflow: visible; }
+.intro-gem path { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.intro-lines path { stroke: var(--brass); stroke-dasharray: 1; stroke-dashoffset: 1; }
+.intro-gem .intro-glow path { stroke: #FFFBF2; stroke-width: 3.6; }
+.intro-gem .intro-face { fill: #E6CF9F; stroke: none; opacity: .75; }
+.intro-band { transform: skewX(-22deg); }
+.intro-gem .intro-spark { fill: var(--brass); stroke: none; opacity: 0; transform-box: fill-box; transform-origin: center; }
+.intro-word { width: 100%; height: auto; overflow: visible; }
+.intro-word text { font-family: var(--serif); font-size: 128px; font-weight: 400; font-style: normal; }
+.intro-word tspan { fill: rgba(158, 128, 82, 0); stroke: var(--brass); stroke-width: 1.6; stroke-dasharray: 1100; stroke-dashoffset: 1100; }
+.intro-sub { margin: 0; padding-left: .42em; font-size: .75rem; font-weight: 700; letter-spacing: .42em; text-transform: uppercase; color: var(--brass-ink); clip-path: inset(0 100% 0 0); }
+.intro-go .intro-lines path { animation: intro-draw .6s cubic-bezier(.65, 0, .35, 1) forwards; }
+.intro-go .intro-lines path:nth-child(2) { animation-delay: .2s; }
+.intro-go .intro-lines path:nth-child(n+3) { animation-delay: .32s; animation-duration: .55s; }
+.intro-go .intro-word tspan {
+  animation: intro-draw .7s cubic-bezier(.5, 0, .3, 1) forwards, intro-ink .4s ease forwards;
+  animation-delay: calc(.15s + var(--i) * .05s), calc(.5s + var(--i) * .05s);
+}
+.intro-go .intro-sub { animation: intro-wipe .5s cubic-bezier(.5, 0, .2, 1) .95s forwards; }
+.intro-go .intro-band { animation: intro-shine .65s ease-in-out 1.05s forwards; }
+.intro-go .intro-spark { animation: intro-spark .6s ease-out 1.3s forwards; }
+@keyframes intro-draw { to { stroke-dashoffset: 0; } }
+@keyframes intro-ink { to { fill: var(--brass); } }
+@keyframes intro-wipe { to { clip-path: inset(0 0 0 0); } }
+@keyframes intro-shine { to { transform: translateX(185px) skewX(-22deg); } }
+@keyframes intro-spark { 0% { opacity: 0; transform: scale(0) rotate(0); } 45% { opacity: 1; transform: scale(1.25) rotate(45deg); } 100% { opacity: 0; transform: scale(.3) rotate(90deg); } }
+@keyframes intro-lift { to { transform: translateY(-10px); } }
+@keyframes intro-out { from { clip-path: inset(0 0 0 0); } to { clip-path: inset(0 0 100% 0); visibility: hidden; } }
+@media print { .intro-screen { display: none !important; } }
+
 /* === Hero (home) ==========================================================
    The opening photograph fills the screen and the header lies over it until the page is scrolled. The words
    sit at the foot of the photograph on a shade that keeps them legible on every slide; the planner floats
@@ -897,7 +940,7 @@ ul.fac-list { display: grid; gap: 0; margin-top: clamp(32px, 4vw, 56px); border-
 @media (min-width: 43.75em) { .mapplate__view { aspect-ratio: 4 / 3; } }
 .mapplate__view:focus-visible { outline: 3px solid var(--ink); outline-offset: -3px; }
 .mapplate__stage { position: relative; height: 100%; aspect-ratio: 4 / 3; }
-.mapplate__raster { position: absolute; inset: 0; transform-origin: 0 0; }
+.mapplate__raster { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; }
 .mapplate__raster picture { display: block; width: 100%; height: 100%; }
 .mapplate__img { display: block; width: 100%; height: 100%; -webkit-user-drag: none; user-select: none; }
 .mapplate__pins { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; }
@@ -1329,6 +1372,11 @@ ul.card__facts { clip-path: inset(-8px 0); }
 .reel__track::-webkit-scrollbar { display: none; }
 .reel__track > .shot { flex: 0 0 min(82vw, 560px); scroll-snap-align: start; }
 .reel.is-dragging .reel__track { scroll-snap-type: none; cursor: grabbing; }
+/* moving on its own, the strip cannot snap: snapping would pull it back to a card on every step */
+.reel.is-loop .reel__track { scroll-snap-type: none; }
+.round-btn .i-play { display: none; }
+.round-btn.is-paused .i-play { display: block; }
+.round-btn.is-paused .i-pause { display: none; }
 .reel.is-dragging .zoomable { pointer-events: none; }
 .reel__ctl { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
 .round-btn {

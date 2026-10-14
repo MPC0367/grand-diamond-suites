@@ -181,6 +181,8 @@ export const ui = {
   servingNow: { en: "{name} now, until {end}", th: "{name} ตอนนี้ ถึง {end} น." },
   prevPhotos: { en: "Earlier photographs", th: "ภาพก่อนหน้า" },
   nextPhotos: { en: "More photographs", th: "ภาพถัดไป" },
+  reelPause: { en: "Pause the gallery", th: "หยุดเลื่อนแกลเลอรี" },
+  reelPlay: { en: "Play the gallery", th: "เลื่อนแกลเลอรีอัตโนมัติ" },
   prev: { en: "Previous", th: "ก่อนหน้า" },
   next: { en: "Next", th: "ถัดไป" },
   pause: { en: "Pause the photographs", th: "หยุดเลื่อนภาพอัตโนมัติ" },

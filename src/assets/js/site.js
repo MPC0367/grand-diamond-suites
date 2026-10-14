@@ -605,18 +605,57 @@
     addEventListener("scroll", function () { if (!bandRaf) bandRaf = requestAnimationFrame(bandPass); }, { passive: true });
     bandPass();
   }
-  /* the reel: dragged with a mouse (a touch screen swipes it natively), or moved a card at a time */
+  /* the reel: it drifts on its own, slowly and without end, and can still be swiped (touch), dragged
+     (mouse) or moved a card at a time with its buttons. The photographs are followed by a copy of
+     themselves, hidden from screen readers and the Tab key, and the strip steps back by one set's width
+     as it reaches the copy, so the join never shows. A copy opens the viewer like its original (the
+     viewer counts each photograph once). The drift holds while the mouse is over the strip, for a moment
+     after a touch, a wheel or a button, while the keyboard is in it and while a photograph is open; the
+     pause button stops it for good, and with reduced motion it starts stopped. */
   $$("[data-reel]").forEach(function (reel) {
-    var track = $("[data-reel-track]", reel), pv = $("[data-reel-prev]", reel), nx = $("[data-reel-next]", reel);
+    var track = $("[data-reel-track]", reel), pv = $("[data-reel-prev]", reel), nx = $("[data-reel-next]", reel), pa = $("[data-reel-pause]", reel);
     if (!track) return;
-    var by = function (dir) { var card = track.firstElementChild; track.scrollBy({ left: dir * (card ? card.getBoundingClientRect().width + 18 : track.clientWidth * 0.8), behavior: reduce ? "auto" : "smooth" }); };
-    var ends = function () { if (pv) pv.disabled = track.scrollLeft < 4; if (nx) nx.disabled = track.scrollLeft > track.scrollWidth - track.clientWidth - 4; };
+    var cards = [].slice.call(track.children), loop = cards.length > 2;
+    if (loop) {
+      cards.forEach(function (card) {
+        var k = card.cloneNode(true);
+        k.setAttribute("aria-hidden", "true"); k.classList.add("is-copy");
+        $$("[id]", k).forEach(function (e) { e.removeAttribute("id"); });
+        $$("[aria-describedby]", k).forEach(function (e) { e.removeAttribute("aria-describedby"); });
+        $$("a, button, input, select, textarea, [tabindex]", k).forEach(function (e) { e.setAttribute("tabindex", "-1"); });
+        track.appendChild(k);
+      });
+      reel.classList.add("is-loop");
+    } else if (pa) pa.hidden = true;
+    var setW = 0, pos = 0, going = false, grab = null, hover = false, held = false, restAt = 0, visible = false, auto = loop && !reduce, raf = 0, last = 0;
+    var measureSet = function () { setW = loop ? track.children[cards.length].offsetLeft - cards[0].offsetLeft : 0; };
+    var rest = function (ms) { restAt = Date.now() + (ms || 2500); };
+    var by = function (dir) {
+      var card = track.firstElementChild, step = card ? card.getBoundingClientRect().width + 18 : track.clientWidth * 0.8;
+      if (setW) { var x = track.scrollLeft; if (dir > 0 && x + step >= setW) track.scrollLeft = x - setW; else if (dir < 0 && x - step < 0) track.scrollLeft = x + setW; }
+      rest(1200);
+      track.scrollBy({ left: dir * step, behavior: reduce ? "auto" : "smooth" });
+    };
+    var ends = function () {
+      if (setW) { if (pv) pv.disabled = false; if (nx) nx.disabled = false; return; }
+      if (pv) pv.disabled = track.scrollLeft < 4; if (nx) nx.disabled = track.scrollLeft > track.scrollWidth - track.clientWidth - 4;
+    };
+    /* past the end of the first set, or back before its start: the same picture, one set along */
+    var wrap = function () {
+      if (!setW) return;
+      var x = track.scrollLeft, dx = x >= setW ? -setW : x < 1 && !going ? setW : 0;
+      if (!dx) return;
+      track.scrollLeft = x + dx; pos = x + dx;
+      if (grab) grab.left += dx;
+    };
     if (pv) pv.addEventListener("click", function () { by(-1); });
     if (nx) nx.addEventListener("click", function () { by(1); });
-    track.addEventListener("scroll", ends, { passive: true }); addEventListener("resize", ends); ends();
-    var grab = null;
+    track.addEventListener("scroll", function () { wrap(); ends(); }, { passive: true });
+    addEventListener("resize", function () { measureSet(); ends(); seen(); });
     track.addEventListener("pointerdown", function (ev) { if (ev.pointerType !== "mouse" || ev.button) return; grab = { x: ev.clientX, left: track.scrollLeft, moved: false }; });
     addEventListener("pointermove", function (ev) {
+      /* a mouse in use: the keyboard's hold gives way (pointing at the strip holds it instead) */
+      if (ev.pointerType === "mouse") held = false;
       if (!grab) return;
       var dx = ev.clientX - grab.x;
       if (!grab.moved && Math.abs(dx) > 6) { grab.moved = true; reel.classList.add("is-dragging"); }
@@ -629,9 +668,41 @@
       setTimeout(function () { reel.classList.remove("is-dragging"); }, 0);
       /* settle on the nearest card */
       var card = track.firstElementChild, w = card ? card.getBoundingClientRect().width + 18 : 1;
+      rest(1200);
       track.scrollTo({ left: Math.round(track.scrollLeft / w) * w, behavior: reduce ? "auto" : "smooth" });
     });
     track.addEventListener("dragstart", function (ev) { ev.preventDefault(); });
+    track.addEventListener("pointerenter", function (ev) { if (ev.pointerType !== "touch") hover = true; });
+    track.addEventListener("pointerleave", function (ev) { if (ev.pointerType !== "touch") hover = false; });
+    ["touchstart", "touchmove", "wheel"].forEach(function (n) { track.addEventListener(n, function () { rest(); }, { passive: true }); });
+    reel.addEventListener("focusin", function (ev) {
+      if (!track.contains(ev.target)) return;
+      var kb = true;
+      try { kb = ev.target.matches(":focus-visible"); } catch (e) {}
+      held = kb;
+    });
+    reel.addEventListener("focusout", function (ev) { if (!ev.relatedTarget || !track.contains(ev.relatedTarget)) held = false; });
+    var frame = function (t) {
+      raf = 0;
+      if (!auto || !visible || d.hidden) { last = 0; going = false; return; }
+      if (hover || held || grab || Date.now() < restAt || d.querySelector("dialog[open]") || !last) { pos = track.scrollLeft; going = false; }
+      else {
+        /* moved by something else meanwhile: carry on from there */
+        if (Math.abs(track.scrollLeft - pos) > 2) pos = track.scrollLeft;
+        pos += 30 * Math.min(50, t - last) / 1000;
+        if (pos >= setW) pos -= setW;
+        going = true; track.scrollLeft = pos;
+      }
+      last = t;
+      raf = requestAnimationFrame(frame);
+    };
+    var kick = function () { if (!raf && auto && visible && !d.hidden) raf = requestAnimationFrame(frame); };
+    var seen = function () { var r = reel.getBoundingClientRect(); visible = r.bottom > 0 && r.top < innerHeight; kick(); };
+    var paintPa = function () { if (!pa) return; pa.classList.toggle("is-paused", !auto); pa.setAttribute("aria-label", auto ? T.reelPause : T.reelPlay); };
+    if (pa) pa.addEventListener("click", function () { auto = !auto; paintPa(); kick(); });
+    addEventListener("scroll", seen, { passive: true });
+    d.addEventListener("visibilitychange", kick);
+    measureSet(); ends(); paintPa(); seen();
     /* a swipe should find the next photographs already there: once the reel is near, they all load */
     var near = function () {
       if (reel.getBoundingClientRect().top > innerHeight * 1.5) return;
@@ -981,6 +1052,8 @@
     var ratio = num("data-ratio", 4 / 3), ground = num("data-ground", 2000), hx = num("data-hx", 0.5), hy = num("data-hy", 0.5), open = num("data-open", 1);
     var FINEST = 0.55; /* metres of ground to one CSS pixel at the closest zoom */
     var UP = 1.6;      /* a level of the drawing is never shown at more than this many times its own size */
+    /* laid: the zoom the drawing is laid out at; between rests it is scaled by s / laid */
+    var laid = 1;
     var vw = 0, vh = 0, bw = 0, bh = 0, s = 1, sWas = 1, sMax = 1, cx = hx, cy = hy, tx = 0, ty = 0, home = null, anim = 0, settleT = 0, live = false;
     var pins = $$(".pin[data-pin]", pinsEl);
     var zIn = $('[data-zoom="in"]', el), zOut = $('[data-zoom="out"]', el), zHome = $('[data-zoom="reset"]', el);
@@ -1006,6 +1079,7 @@
       bw = Math.max(vw, vh * ratio); bh = bw / ratio;
       sMax = Math.max(1, ground / bw / FINEST);
       stage.style.width = bw + "px"; stage.style.height = bh + "px";
+      raster.style.width = (bw * laid).toFixed(2) + "px"; raster.style.height = (bh * laid).toFixed(2) + "px";
       return true;
     }
     function apply() {
@@ -1017,7 +1091,8 @@
       tx = clamp(vw / 2 - cx * w, Math.min(vw - R[2] * w, -R[0] * w), -R[0] * w); ty = clamp(vh / 2 - cy * h, Math.min(vh - R[3] * h, -R[1] * h), -R[1] * h);
       cx = (vw / 2 - tx) / w; cy = (vh / 2 - ty) / h;
       var move = "translate(" + tx.toFixed(2) + "px," + ty.toFixed(2) + "px)";
-      raster.style.transform = move + " scale(" + s.toFixed(4) + ")";
+      var k = s / laid;
+      raster.style.transform = move + (Math.abs(k - 1) > 1e-5 ? " scale(" + k.toFixed(5) + ")" : "");
       pinsEl.style.width = w.toFixed(2) + "px"; pinsEl.style.height = h.toFixed(2) + "px"; pinsEl.style.transform = move;
       /* closer in than it opened: one finger then moves the map in every direction */
       el.classList.toggle("is-zoomed", s > open * 1.03);
@@ -1077,7 +1152,15 @@
       card.style.setProperty("--cx", (X - o).toFixed(1) + "px"); card.style.setProperty("--cy", (Y - t).toFixed(1) + "px");
     }
     /* once the map is at rest: the squares now in view, at the level that suits the zoom */
-    function settle() { afterMove.forEach(function (fn) { fn(true); }); }
+    /* At rest the drawing is laid out at its true size and only moved, on whole device pixels. A layer
+       enlarged with scale() can be drawn small and stretched by the browser, which reads as blur on a
+       sharp screen; the scale is kept only for the moving, where it keeps zooming smooth. */
+    function settle() {
+      var dp = window.devicePixelRatio || 1, rx = Math.round(tx * dp) / dp, ry = Math.round(ty * dp) / dp;
+      if (Math.abs(s - laid) > 1e-6) { laid = s; raster.style.width = (bw * s).toFixed(2) + "px"; raster.style.height = (bh * s).toFixed(2) + "px"; }
+      raster.style.transform = pinsEl.style.transform = "translate(" + rx + "px," + ry + "px)";
+      afterMove.forEach(function (fn) { fn(true); });
+    }
     function glide(S, X, Y) {
       cancelAnimationFrame(anim);
       S = clamp(S, 1, sMax);

@@ -504,12 +504,14 @@ export const privacyPage = {
       p: {
         en: [
           "So that your choices survive a change of page or language, the site keeps your stay dates, number of adults, the ages of any children you add, the suite you last opened and your comparison choices in your browser's session storage. The site does not send them anywhere by itself. They leave your device only when you choose to continue to the booking page, as described in the next section.",
+          "The site also notes in session storage that its short opening animation has played, so that it plays only once a visit.",
           "Browsers normally clear session storage when the tab is closed. A browser that restores closed tabs may bring the choices back with the tab.",
           "If you switch language, that one choice is remembered in your browser's local storage, so the site's main address opens in the same language next time. It stays on your device until you clear your browser data.",
           "Text you type into the enquiry helper is not stored. It exists only on the page, and is gone when you leave the page, reload it or change language. It goes nowhere unless you copy it or open it in your own email app.",
         ],
         th: [
           "เพื่อให้ตัวเลือกของคุณยังอยู่เมื่อเปลี่ยนหน้าหรือเปลี่ยนภาษา เว็บไซต์จะเก็บวันเข้าพัก จำนวนผู้ใหญ่ อายุของเด็กที่ระบุไว้ ห้องสวีทที่เปิดดูล่าสุด และตัวเลือกในการเปรียบเทียบ ไว้ในพื้นที่จัดเก็บชั่วคราวของเบราว์เซอร์ เว็บไซต์ไม่ได้ส่งข้อมูลเหล่านี้ไปที่ใดเอง ข้อมูลจะออกจากอุปกรณ์ของคุณก็ต่อเมื่อคุณเลือกไปยังหน้าจอง ตามที่อธิบายในหัวข้อถัดไป",
+          "เว็บไซต์ยังบันทึกไว้ในพื้นที่จัดเก็บชั่วคราวด้วยว่าได้แสดงภาพเคลื่อนไหวตอนเปิดเว็บไซต์แล้ว เพื่อให้แสดงเพียงครั้งเดียวต่อการเข้าชม",
           "โดยปกติเบราว์เซอร์จะล้างพื้นที่จัดเก็บชั่วคราวเมื่อปิดแท็บ แต่เบราว์เซอร์ที่กู้คืนแท็บที่ปิดไปแล้วอาจนำตัวเลือกเหล่านี้กลับมาพร้อมกับแท็บ",
           "หากคุณสลับภาษา เว็บไซต์จะจำภาษาที่เลือกไว้ในพื้นที่จัดเก็บของเบราว์เซอร์ เพื่อให้หน้าแรกของเว็บไซต์เปิดเป็นภาษาเดิมในครั้งถัดไป ข้อมูลนี้อยู่ในอุปกรณ์ของคุณจนกว่าคุณจะล้างข้อมูลเบราว์เซอร์",
           "ข้อความที่พิมพ์ในตัวช่วยเรียบเรียงข้อความสอบถามจะไม่ถูกจัดเก็บ ข้อความอยู่บนหน้าเว็บเท่านั้น และจะหายไปเมื่อออกจากหน้า โหลดหน้าใหม่ หรือเปลี่ยนภาษา ข้อความจะไม่ถูกส่งไปที่ใด เว้นแต่คุณจะคัดลอกหรือเปิดในแอปอีเมลของคุณเอง",

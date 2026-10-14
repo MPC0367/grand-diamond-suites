@@ -172,6 +172,7 @@ export const homeDef = {
       </div>
       <div class="reel__ctl js-only">
         <button type="button" class="round-btn" data-reel-prev aria-label="${c.t("prevPhotos")}">${icon("prev")}</button>
+        <button type="button" class="round-btn" data-reel-pause aria-label="${c.t("reelPause")}">${icon("pause")}${icon("play")}</button>
         <button type="button" class="round-btn" data-reel-next aria-label="${c.t("nextPhotos")}">${icon("next")}</button>
       </div>
     </div>

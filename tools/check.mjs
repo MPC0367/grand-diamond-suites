@@ -582,6 +582,96 @@ if (runs("behaviour")) {
     await ctx.close();
   });
 
+  /* ---------- the opening: once a visit, about two seconds, never in the way ---------- */
+  await block("opening animation", async () => {
+    const shown = (p) => p.evaluate(() => { const s = document.querySelector(".intro-screen"); const cs = s && getComputedStyle(s); return !!cs && cs.display !== "none" && cs.visibility !== "hidden" && +cs.opacity > 0.05; });
+    const ctx = await newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await ctx.newPage();
+    await page.goto(BASE + "en/", { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(250);
+    const first = await page.evaluate(() => { const s = document.querySelector(".intro-screen"), cs = getComputedStyle(s), hit = document.elementFromPoint(innerWidth / 2, innerHeight / 2); return { cls: document.documentElement.className, hidden: s.getAttribute("aria-hidden"), pointer: cs.pointerEvents, through: !!hit && !hit.closest(".intro-screen"), words: s.textContent.replace(/\s+/g, " ").trim() }; });
+    expect((await shown(page)) && /\bintro\b/.test(first.cls) && first.hidden === "true" && first.pointer === "none" && first.through && first.words === "Grand Diamond Suites Hotel", "opening: plays on the first page of a visit, hidden from screen readers, and a click passes through it to the page", JSON.stringify(first));
+    await page.waitForTimeout(2750);
+    expect(!(await shown(page)), "opening: gone within three seconds");
+    await page.goto(BASE + "en/suites/", { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(250);
+    expect(!(await shown(page)) && !(await page.evaluate(() => document.documentElement.classList.contains("intro"))), "opening: plays only once a visit (not again on the next page)");
+    await ctx.close();
+    for (const [label, opts, init] of [["with reduced motion", { reducedMotion: "reduce" }, null], ["without JavaScript", { javaScriptEnabled: false }, null], ["with storage refused", {}, () => { const deny = { get() { throw new Error("denied"); } }; try { Object.defineProperty(window, "sessionStorage", deny); } catch (e) {} }]]) {
+      const c2 = await newContext({ viewport: { width: 1280, height: 800 }, ...opts });
+      if (init) await c2.addInitScript(init);
+      const p2 = await c2.newPage();
+      await p2.goto(BASE + "th/", { waitUntil: "domcontentloaded" });
+      await p2.waitForTimeout(250);
+      expect(!(await shown(p2)), `opening: not shown ${label}`);
+      await c2.close();
+    }
+  });
+
+  /* ---------- the home page's photo reel: it drifts on its own, without end ---------- */
+  await block("home gallery reel", async () => {
+    const ctx = await newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await ctx.newPage();
+    await page.goto(BASE + "en/", { waitUntil: "load" });
+    await page.evaluate(() => document.querySelector("[data-reel]").scrollIntoView({ block: "center" }));
+    await page.mouse.move(5, 5);
+    await page.waitForTimeout(700);
+    const x = () => page.evaluate(() => document.querySelector("[data-reel-track]").scrollLeft);
+    const x0 = await x(); await page.waitForTimeout(1500); const x1 = await x();
+    expect(x1 - x0 > 20, "reel: drifts on its own", JSON.stringify({ x0, x1 }));
+    const copies = await page.evaluate(() => {
+      const all = [...document.querySelector("[data-reel-track]").children], cs = all.filter((c) => c.classList.contains("is-copy"));
+      return { all: all.length, copies: cs.length, hidden: cs.every((c) => c.getAttribute("aria-hidden") === "true"), ids: cs.some((c) => c.querySelector("[id]")), tabbable: cs.some((c) => [...c.querySelectorAll("a, button")].some((e) => e.tabIndex !== -1)) };
+    });
+    expect(copies.copies > 2 && copies.copies * 2 === copies.all && copies.hidden && !copies.ids && !copies.tabbable, "reel: the copy that closes the loop is hidden from screen readers and the Tab key, and repeats no id", JSON.stringify(copies));
+    /* without end: brought to just before the copy, it carries on from the first photograph */
+    const setW = await page.evaluate(() => { const t = document.querySelector("[data-reel-track]"), n = t.children.length / 2; return t.children[n].offsetLeft - t.children[0].offsetLeft; });
+    await page.evaluate((w) => { document.querySelector("[data-reel-track]").scrollLeft = w - 15; }, setW);
+    await page.waitForTimeout(1500);
+    const x2 = await x();
+    expect(x2 < 200, "reel: reaching the copy, it carries on from the first photograph, without end", JSON.stringify({ setW, x2 }));
+    /* it holds under the mouse, and a click opens the photograph under the pointer; the count is the page's own photographs, copies left out */
+    const box = await page.locator("[data-reel-track]").boundingBox();
+    const cx = box.x + box.width / 2, cy = box.y + box.height * 0.35;
+    await page.mouse.move(cx, cy);
+    await page.waitForTimeout(400); const h0 = await x(); await page.waitForTimeout(1200); const h1 = await x();
+    expect(Math.abs(h1 - h0) <= 1, "reel: holds still while the mouse is over it", JSON.stringify({ h0, h1 }));
+    const target = await page.evaluate(([px, py]) => { const b = document.elementFromPoint(px, py)?.closest("[data-viewer]"); return b ? { id: b.getAttribute("data-id"), copy: !!b.closest(".is-copy") } : null; }, [cx, cy]);
+    await page.mouse.click(cx, cy);
+    await page.waitForTimeout(900);
+    const v = await page.evaluate(() => { const dlg = document.getElementById("viewer"), img = dlg.querySelector("[data-img]"), ids = new Set([...document.querySelectorAll('[data-viewer="home"]')].filter((b) => !b.closest(".is-copy")).map((b) => b.getAttribute("data-id"))); return { open: dlg.open, src: (img.currentSrc || img.src || "").split("/media/")[1], count: dlg.querySelector("[data-count]").textContent, n: ids.size }; });
+    expect(!!target && v.open && v.src.startsWith(target.id + "-") && new RegExp(" of " + v.n + "$").test(v.count), "reel: a click on a photograph opens it in the viewer, and the copies add nothing to the count", JSON.stringify({ target, v }));
+    await page.mouse.move(5, 5);
+    const o0 = await x(); await page.waitForTimeout(900); const o1 = await x();
+    expect(Math.abs(o1 - o0) <= 1, "reel: holds while a photograph is open", JSON.stringify({ o0, o1 }));
+    await page.keyboard.press("Escape"); await page.waitForTimeout(400);
+    /* closed with Escape, focus is back on the photograph; once the mouse moves elsewhere the drift resumes */
+    await page.mouse.move(5, 5); await page.mouse.move(9, 9);
+    const e0 = await x(); await page.waitForTimeout(1200); const e1 = await x();
+    expect(e1 - e0 > 15, "reel: after the viewer is closed with Escape, it drifts again once the mouse moves away", JSON.stringify({ e0, e1 }));
+    /* the pause button stops it for good, and play starts it again */
+    await page.click("[data-reel-pause]"); await page.mouse.move(5, 5);
+    const p0 = await x(); await page.waitForTimeout(1300); const p1 = await x();
+    const said = await page.getAttribute("[data-reel-pause]", "aria-label");
+    expect(Math.abs(p1 - p0) <= 1 && said === "Play the gallery", "reel: the pause button stops it, and then offers to play it", JSON.stringify({ p0, p1, said }));
+    await page.click("[data-reel-pause]"); await page.mouse.move(5, 5);
+    await page.waitForTimeout(1400);
+    const q0 = await x(); await page.waitForTimeout(1200); const q1 = await x();
+    expect(q1 - q0 > 15 && (await page.getAttribute("[data-reel-pause]", "aria-label")) === "Pause the gallery", "reel: play starts it again", JSON.stringify({ q0, q1 }));
+    await ctx.close();
+    /* with reduced motion it starts stopped, and says it can be played */
+    const still = await newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: "reduce" });
+    const sp = await still.newPage();
+    await sp.goto(BASE + "th/", { waitUntil: "load" });
+    await sp.evaluate(() => document.querySelector("[data-reel]").scrollIntoView({ block: "center" }));
+    await sp.mouse.move(5, 5);
+    await sp.waitForTimeout(500);
+    const r0 = await sp.evaluate(() => document.querySelector("[data-reel-track]").scrollLeft); await sp.waitForTimeout(1300);
+    const r1 = await sp.evaluate(() => document.querySelector("[data-reel-track]").scrollLeft);
+    expect(r0 === r1 && (await sp.getAttribute("[data-reel-pause]", "aria-label")) === "เลื่อนแกลเลอรีอัตโนมัติ", "reel: with reduced motion it starts stopped (Thai page)", JSON.stringify({ r0, r1 }));
+    await still.close();
+  });
+
   /* ---------- the neighbourhood map ---------- */
   await block("map", async () => {
     const ctx = await newContext({ viewport: { width: 1440, height: 900 } });
@@ -992,6 +1082,23 @@ if (runs("behaviour")) {
 /* ------------------------------------------------------------------ */
 if (runs("behaviour")) {
   console.log("Regression cases");
+  /* the map was blurred on a sharp screen when its drawing was enlarged with scale(): at rest it must be laid
+     out at its true size, the same as the marker layer, and only moved */
+  await block("map at rest is laid out at true size", async () => {
+    const ctx = await newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 });
+    const page = await ctx.newPage();
+    await page.goto(BASE + "en/", { waitUntil: "load" });
+    await page.evaluate(() => document.querySelector("[data-map]").scrollIntoView({ block: "center" }));
+    await page.waitForTimeout(1200);
+    const rest = () => page.evaluate(() => { const r = document.querySelector("[data-raster]"), p = document.querySelector("[data-pins]"); return { t: r.style.transform, rw: r.getBoundingClientRect().width, pw: p.getBoundingClientRect().width }; });
+    const a = await rest();
+    await page.click('[data-map] [data-zoom="in"]'); await page.waitForTimeout(900);
+    const b = await rest();
+    const ok2 = (q) => !/scale/.test(q.t) && Math.abs(q.rw - q.pw) < 1;
+    expect(ok2(a) && ok2(b) && b.rw > a.rw * 1.5, "map: at rest the drawing is laid out at its true size (no scale), on the opening view and after a zoom", JSON.stringify({ a, b }));
+    await ctx.close();
+  });
+
   await block("regression: planner and enquiry", async () => {
     const ctx = await newContext({ viewport: { width: 1440, height: 900 } });
     const page = await ctx.newPage();
