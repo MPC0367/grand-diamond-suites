@@ -23,7 +23,7 @@
 <link rel="icon" href="../../assets/img/favicon.png" type="image/png">
 <link rel="preload" href="../../assets/fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="../../assets/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
 
-<link rel="stylesheet" href="../../assets/css/site.css?v=9365d6ee0b">
+<link rel="stylesheet" href="../../assets/css/site.css?v=dff5f6c0ad">
 <script>(function(d){var h=d.documentElement;h.classList.remove("no-js");h.classList.add("js");try{if(!matchMedia("(prefers-reduced-motion: reduce)").matches)h.classList.add("anim")}catch(e){}try{var n=performance.getEntriesByType&&performance.getEntriesByType("navigation")[0],r=n?n.type==="reload":!!(performance.navigation&&performance.navigation.type===1);if(h.classList.contains("anim")&&(r||!sessionStorage.getItem("gd:intro"))){sessionStorage.setItem("gd:intro","1");h.classList.add("intro");var g=function(){h.classList.add("intro-go")};setTimeout(g,350);if(d.fonts)d.fonts.load('400 1em "Newsreader"').then(g,g)}}catch(e){}addEventListener("load",function(){if(!window.__gd)h.className="no-js"})})(document)</script>
 
 </head>
@@ -233,12 +233,14 @@
       </div>
     </div>
   </dialog>
-<dialog class="sheet" id="plan-dialog" aria-labelledby="plan-dialog-title">
-    <div class="sheet__top">
-      <h2 id="plan-dialog-title">Plan your stay</h2>
-      <button type="button" class="close-btn" data-close>Close<svg class="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
-    </div>
-    <div class="sheet__body"><div class="planner-block" data-planner-block>
+<dialog class="sheet sheet--plan" id="plan-dialog" aria-labelledby="plan-dialog-title">
+    <div class="sheet__in">
+      <button type="button" class="round-btn sheet__x" data-close aria-label="Close"><svg class="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+      <div class="sheet__head">
+        <p class="eyebrow">Direct booking</p>
+        <h2 id="plan-dialog-title">Choose your dates</h2>
+      </div>
+      <div class="sheet__body"><div class="planner-block" data-planner-block>
     <form class="planner planner--compact" data-planner novalidate autocomplete="off" action="https://www.granddiamondsuites.com/booking" method="get" target="_blank" rel="noopener noreferrer" aria-label="Plan your stay">
       <div class="planner__fields">
         <div class="field field--date">
@@ -294,9 +296,10 @@
     </div>
     <p class="planner__note"><span class="js-only">Dates are optional. Booking continues on the hotel&#39;s official booking page, where you choose the suite and rate. Promo codes are entered there. More than 8 guests, or more than one room? Add rooms on the booking page. <a class="link" data-larger-party href="../../en/contact/?about=family">Ask about a group stay</a></span><span class="nojs-only">Availability is checked on the hotel&#39;s official booking page, where you choose your dates, suite and rate.</span></p>
   </div></div>
+    </div>
   </dialog>
 
 <script type="application/json" id="boot">{"lang":"en","booking":{"page":"https://www.granddiamondsuites.com/booking","host":"www.granddiamondsuites.com","maxNights":31,"maxAdults":8,"maxChildren":3,"maxChildAge":17,"maxGuests":8},"t":{"msgNeedBoth":"Choose both dates, or clear the dates to search without them.","msgNeedIn":"Choose a check-in date, or clear the dates to search without them.","msgNeedOut":"Choose a check-out date, or clear the dates to search without them.","msgPast":"Check-in cannot be earlier than today in Bangkok, {date}.","msgOrder":"Check-out must be after check-in.","msgLong":"The hotel's booking page showed a limit of {n} nights when it was checked. For {m} nights, continue there and adjust the dates, or ask the hotel about a long stay.","msgParty":"The hotel's booking page searches for up to {n} guests at a time. For {m} guests, add another room on the booking page, or ask the hotel about a group stay.","msgInvalid":"Enter a valid date.","msgAdjusted":"Check-out moved to {date} so that it stays after check-in.","msgNights":"{n} nights, {a}","msgNight":"1 night, {a}","to":"to","adultsOne":"1 adult","adultsMany":"{n} adults","childrenOne":"1 child","childrenMany":"{n} children","msgAges":"Choose the age of each child on the day of arrival.","photoOf":"Photograph {i} of {n}","copied":"Address copied","copyFailed":"Could not copy. Select the address and copy it by hand.","pause":"Pause the photographs","play":"Play the photographs","reelPause":"Pause the gallery","reelPlay":"Play the gallery","showing":"{n} shown","photosShown":"{n} photographs","sep":", ","stop":". ","msgStay":"{s}. {a} to {b}","recoverNoteLong":"Your dates and guests are passed on exactly as entered. Nothing is shortened: the booking page shows its own limit.","recoverNoteParty":"Only your dates are passed on. Add each room and its guests on the booking page.","recoverNoteAsk":"The enquiry opens with your dates and guests filled in. It is a question to the hotel, not a reservation.","notSelected":"Not selected","datesPartial":"Incomplete: choose both dates","datesRange":"{r} ({n})","nightsOne":"1 night","nightsMany":"{n} nights","agedList":"aged {ages}","agesNeeded":"ages needed","and":" and ","ageUnder1Short":"under 1","ageYears":"{n}","msgCleared":"Dates cleared. Your guests are unchanged.","fitOver":"The booking page lists the {suite} for up to {n} guests, and your party is {m}.","fitOthers":"Listed for {m} or more:","fitRooms":"You can also book more than one room on the booking page. A listed total is not a promise that a suite is available.","photoFailed":"This photograph could not be loaded."},"viewer":{},"mediaBase":"../../media/","locale":"en-GB"}</script>
-<script src="../../assets/js/site.js?v=9365d6ee0b" defer></script>
+<script src="../../assets/js/site.js?v=dff5f6c0ad" defer></script>
 </body>
 </html>

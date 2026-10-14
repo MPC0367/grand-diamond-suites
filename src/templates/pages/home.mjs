@@ -36,7 +36,7 @@ export const homeDef = {
       <h1 class="display" id="hero-title">${marked(c, T.hero.title)}</h1>
       <p class="hero__sub">${c.l(T.hero.sub)}</p>
       <div class="hero__actions">
-        <a class="btn btn--paper" href="#plan" data-prefer-dock data-hero-cta>${c.t("checkDates")}${icon("down")}</a>
+        <a class="btn btn--paper" href="#plan" data-open-planner data-hero-cta>${c.t("checkDates")}</a>
         <a class="btn btn--line-light" href="#find-your-space">${c.l(T.hero.explore)}${icon("arrow")}</a>
       </div>
       <p class="hero__more">${arrowLink(c, c.href("suites/compare/"), c.l(T.hero.compare))}</p>

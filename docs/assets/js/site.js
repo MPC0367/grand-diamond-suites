@@ -75,13 +75,24 @@
   }
   $$("dialog").forEach(function (dlg) {
     dlg.addEventListener("close", function () {
+      if (dlg === planDialog) lockY = null;
       if (!$("dialog[open]")) root.classList.remove("has-dialog");
       syncBar();
       restoreFocus(dlg);
     });
-    dlg.addEventListener("click", function (ev) { if (ev.target === dlg) dlg.close(); });
-    $$("[data-close]", dlg).forEach(function (b) { b.addEventListener("click", function () { dlg.close(); }); });
+    dlg.addEventListener("click", function (ev) { if (ev.target === dlg) closeDlg(dlg); });
+    $$("[data-close]", dlg).forEach(function (b) { b.addEventListener("click", function () { closeDlg(dlg); }); });
+    dlg.addEventListener("cancel", function (ev) { if (dlg === planDialog && !reduce) { ev.preventDefault(); closeDlg(dlg); } });
   });
+  var leaving = false;
+  function closeDlg(dlg) {
+    if (dlg !== planDialog || reduce || !dlg.open) { dlg.close(); return; }
+    if (leaving) return;
+    leaving = true; dlg.classList.add("is-leaving");
+    setTimeout(function () { leaving = false; dlg.classList.remove("is-leaving"); if (dlg.open) dlg.close(); }, 340);
+  }
+  var lockY = null;
+  addEventListener("scroll", function () { var y = window.scrollY || root.scrollTop; if (lockY !== null && Math.abs(y - lockY) > 1) scrollTo(0, lockY); }, { passive: true });
   var planners = $$("[data-planner]").map(function (form) {
     var block = form.closest(".planner-block") || form.parentNode;
     return {
@@ -345,9 +356,14 @@
     if (to) to.focus({ preventScroll: true });
     return true;
   };
-  $$("[data-prefer-dock]").forEach(function (a) {
-    a.addEventListener("click", function (ev) { if (goDock()) ev.preventDefault(); });
-  });
+  function openPlan(from) {
+    var y = window.scrollY || root.scrollTop;
+    if (!openDialog(planDialog, from)) return false;
+    lockY = y;
+    if (Math.abs((window.scrollY || root.scrollTop) - y) > 1) scrollTo(0, y);
+    setTimeout(function () { var inp = $("[data-in]", planDialog); if (planDialog.open && inp) inp.focus({ preventScroll: true }); }, 250);
+    return true;
+  }
   $$("[data-open-planner]").forEach(function (a) {
     if ((dock && planners.length) || (canDialog && planDialog)) { var note = $("[data-newtab-note]", a); if (note) note.parentNode.removeChild(note); }
     a.addEventListener("click", function (ev) {
@@ -356,15 +372,11 @@
       var from = a;
       if (menu && menu.open) {
         from = $("[data-open-menu]");
-        if (dock && planners.length && dock.offsetParent !== null) openers = openers.filter(function (o) { return o.dlg !== menu; });
+        openers = openers.filter(function (o) { return o.dlg !== menu; });
         menu.close();
       }
-      if (goDock()) { ev.preventDefault(); return; }
-      if (openDialog(planDialog, from)) {
-        ev.preventDefault();
-        var inp = $("[data-in]", planDialog);
-        if (inp) inp.focus();
-      }
+      if (openPlan(from)) { ev.preventDefault(); return; }
+      if (goDock()) ev.preventDefault();
     });
   });
   $$("[data-open-menu]").forEach(function (b) {

@@ -237,7 +237,7 @@ for (const lang of config.languages) {
     page.description = meta.description;
     const body = def.render(c);
     const viewer = c.used.size ? viewerData(c, [...c.used]) : null;
-    const htmlText = layout(c, { main: body.main, viewer: body.viewer === false ? null : viewer, preloadImage: body.preloadImage || null, bodyClass: body.bodyClass || "", jsonld: config.mode === "production" ? body.jsonld || null : null });
+    const htmlText = layout(c, { main: body.main, viewer: body.viewer === false ? null : viewer, preloadImage: body.preloadImage || null, bodyClass: body.bodyClass || "", jsonld: config.mode === "production" ? body.jsonld || null : null, planSuite: body.planSuite || null });
     await put(`${lang}/${def.path}index.html`, htmlText);
     report.push({ lang, id: def.id, path: `${lang}/${def.path}`, title: meta.title, description: meta.description, bytes: Buffer.byteLength(htmlText), gzip: zlib.gzipSync(htmlText).length });
   }

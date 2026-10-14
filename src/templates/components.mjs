@@ -177,13 +177,18 @@ export function planner(c, { id, compact = false, suite = null } = {}) {
 }
 
 /** The planner as a dialog, reachable from the header and the phone bar on every page. */
-export function plannerDialog(c) {
-  return html`<dialog class="sheet" id="plan-dialog" aria-labelledby="plan-dialog-title">
-    <div class="sheet__top">
-      <h2 id="plan-dialog-title">${c.t("planStay")}</h2>
-      <button type="button" class="close-btn" data-close>${c.t("close")}${icon("close")}</button>
+/** The booking panel. Every "Check dates" opens it (as on Patravana): it comes down from the top over the
+    page, which stays where it was. On a suite page it is that suite's planner. */
+export function plannerDialog(c, { suite = null } = {}) {
+  return html`<dialog class="sheet sheet--plan" id="plan-dialog" aria-labelledby="plan-dialog-title">
+    <div class="sheet__in">
+      <button type="button" class="round-btn sheet__x" data-close aria-label="${c.t("close")}">${icon("close")}</button>
+      <div class="sheet__head">
+        ${eyebrow(c, c.t("bookKicker"))}
+        <h2 id="plan-dialog-title">${c.t("bookTitle")}</h2>
+      </div>
+      <div class="sheet__body">${planner(c, { id: "pd", compact: true, suite })}</div>
     </div>
-    <div class="sheet__body">${planner(c, { id: "pd", compact: true })}</div>
   </dialog>`;
 }
 

@@ -727,6 +727,26 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; min-height: 
 .sheet__top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px 6px; }
 .sheet__top h2 { font-size: 1.625rem; }
 .sheet__body { padding: 10px 20px 0; }
+/* The booking panel, as on Patravana: full width from the top of the screen, over the dimmed page; its
+   contents scroll inside it and its close button rides along at the top. */
+#plan-dialog { margin: 0; inset: 0 0 auto 0; width: 100%; max-width: none; max-height: 100%; max-height: 100dvh; border-radius: 0; border-bottom: 1px solid var(--line); padding: 0 0 max(20px, env(safe-area-inset-bottom)); }
+#plan-dialog .sheet__in { width: 100%; max-width: calc(980px + 2 * var(--pad)); margin-inline: auto; padding: clamp(16px, 3vw, 34px) var(--pad) 0; }
+#plan-dialog .sheet__x { position: sticky; top: 12px; float: right; z-index: 3; margin: 0 0 8px 16px; background: var(--canvas); }
+#plan-dialog .sheet__x:hover { background: var(--ink); color: var(--paper); }
+#plan-dialog .sheet__x svg { width: 20px; height: 20px; }
+#plan-dialog .sheet__head { display: grid; gap: 8px; margin-bottom: clamp(14px, 2vw, 22px); }
+#plan-dialog .sheet__head h2 { font-size: clamp(1.625rem, 1.2rem + 1.6vw, 2.25rem); }
+#plan-dialog .sheet__body { clear: both; padding: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  #plan-dialog[open] { animation: plan-drop .55s var(--ease) both; }
+  #plan-dialog[open]::backdrop { animation: plan-dim .4s ease both; }
+  #plan-dialog.is-leaving { animation: plan-lift .34s cubic-bezier(.6, 0, .8, .4) both; }
+  #plan-dialog.is-leaving::backdrop { animation: plan-undim .34s ease both; }
+}
+@keyframes plan-drop { from { transform: translateY(-100%); } }
+@keyframes plan-lift { to { transform: translateY(-100%); } }
+@keyframes plan-dim { from { opacity: 0; } }
+@keyframes plan-undim { to { opacity: 0; } }
 
 /* === Reasons ============================================================== */
 .reasons { display: grid; gap: 16px; }

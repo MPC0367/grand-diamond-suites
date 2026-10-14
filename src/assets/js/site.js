@@ -87,13 +87,26 @@
   }
   $$("dialog").forEach(function (dlg) {
     dlg.addEventListener("close", function () {
+      if (dlg === planDialog) lockY = null;
       if (!$("dialog[open]")) root.classList.remove("has-dialog");
       syncBar();
       restoreFocus(dlg);
     });
-    dlg.addEventListener("click", function (ev) { if (ev.target === dlg) dlg.close(); });
-    $$("[data-close]", dlg).forEach(function (b) { b.addEventListener("click", function () { dlg.close(); }); });
+    dlg.addEventListener("click", function (ev) { if (ev.target === dlg) closeDlg(dlg); });
+    $$("[data-close]", dlg).forEach(function (b) { b.addEventListener("click", function () { closeDlg(dlg); }); });
+    dlg.addEventListener("cancel", function (ev) { if (dlg === planDialog && !reduce) { ev.preventDefault(); closeDlg(dlg); } });
   });
+  /* the booking panel goes back up the way it came before it closes */
+  var leaving = false;
+  function closeDlg(dlg) {
+    if (dlg !== planDialog || reduce || !dlg.open) { dlg.close(); return; }
+    if (leaving) return;
+    leaving = true; dlg.classList.add("is-leaving");
+    setTimeout(function () { leaving = false; dlg.classList.remove("is-leaving"); if (dlg.open) dlg.close(); }, 340);
+  }
+  /* while the booking panel is open the page behind it is held where it was, as on Patravana */
+  var lockY = null;
+  addEventListener("scroll", function () { var y = window.scrollY || root.scrollTop; if (lockY !== null && Math.abs(y - lockY) > 1) scrollTo(0, lockY); }, { passive: true });
 
   /* ==================================================================== */
   /* Stay planner                                                          */
@@ -386,10 +399,10 @@
   /* a tab left open past midnight in Bangkok: the earliest date moves on, and a stay that has slipped into the past says so */
   d.addEventListener("visibilitychange", function () { if (!d.hidden && planners.length) paintPlanners(); });
 
-  /* Reaching the stay planner. A page that has a planner of its own (the home page, a suite page, rates,
-     how booking works) uses that one for every "Check dates" control: one planner on the page, and a
-     suite page keeps its suite. Every other page opens the planner as a sheet. Without this script the
-     controls are plain links: to the planner on the page, or to the hotel's booking page. */
+  /* Reaching the stay planner. Every "Check dates" control opens the booking panel, as on Patravana: it
+     comes down over the page, which stays where it was, and on a suite page it is that suite's planner. A
+     page's own planner stays where it is in the page, and shares the stay with the panel. Without this
+     script the controls are plain links: to the planner on the page, or to the hotel's booking page. */
   var planDialog = d.getElementById("plan-dialog");
   var dock = $("[data-dock]");
   var goDock = function () {
@@ -402,9 +415,19 @@
     if (to) to.focus({ preventScroll: true });
     return true;
   };
-  $$("[data-prefer-dock]").forEach(function (a) {
-    a.addEventListener("click", function (ev) { if (goDock()) ev.preventDefault(); });
-  });
+  function openPlan(from) {
+    /* The page is held where it was. Opening the panel puts focus on its close button while the panel is still
+       above the screen, sliding in, and a browser may scroll the page towards it: that is undone here, in the
+       same moment, before anything is drawn. */
+    var y = window.scrollY || root.scrollTop;
+    if (!openDialog(planDialog, from)) return false;
+    lockY = y;
+    if (Math.abs((window.scrollY || root.scrollTop) - y) > 1) scrollTo(0, y);
+    /* the first date field takes the keyboard a moment later, without moving anything (on a phone, focus
+       given outside the tap does not open the date picker by itself) */
+    setTimeout(function () { var inp = $("[data-in]", planDialog); if (planDialog.open && inp) inp.focus({ preventScroll: true }); }, 250);
+    return true;
+  }
   $$("[data-open-planner]").forEach(function (a) {
     /* the control opens the planner in the page, so it no longer says it opens a new tab */
     if ((dock && planners.length) || (canDialog && planDialog)) { var note = $("[data-newtab-note]", a); if (note) note.parentNode.removeChild(note); }
@@ -414,16 +437,13 @@
       var from = a;
       if (menu && menu.open) {
         from = $("[data-open-menu]");
-        /* going to the planner on the page: the menu must not pull focus back to its button as it closes */
-        if (dock && planners.length && dock.offsetParent !== null) openers = openers.filter(function (o) { return o.dlg !== menu; });
+        /* the menu gives way to the panel: it must not pull focus back to its button as it closes */
+        openers = openers.filter(function (o) { return o.dlg !== menu; });
         menu.close();
       }
-      if (goDock()) { ev.preventDefault(); return; }
-      if (openDialog(planDialog, from)) {
-        ev.preventDefault();
-        var inp = $("[data-in]", planDialog);
-        if (inp) inp.focus();
-      }
+      if (openPlan(from)) { ev.preventDefault(); return; }
+      /* a browser without dialogs: the planner in the page, if there is one; otherwise the link itself */
+      if (goDock()) ev.preventDefault();
     });
   });
 

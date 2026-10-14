@@ -104,6 +104,8 @@ export function suiteDef(s) {
       const compareHref = c.href("suites/compare/") + `?a=${s.slug}&b=${other.slug}`;
 
       return {
+        /* the booking panel on this page is this suite's */
+        planSuite: s,
         preloadImage: { srcset: srcsetOf(c, first, "avif"), sizes: "(min-width: 900px) 60vw, 100vw" },
         main: html`${pageTop(c, {
           trail: [{ label: c.t("suites"), href: c.href("suites/") }, { label: c.l(s.name) }],

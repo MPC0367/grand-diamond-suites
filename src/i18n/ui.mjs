@@ -53,6 +53,8 @@ export const ui = {
   checkAvailability: { en: "Check availability", th: "ตรวจสอบห้องว่าง" },
   checkDates: { en: "Check dates", th: "เลือกวันเข้าพัก" },
   planStay: { en: "Plan your stay", th: "วางแผนการเข้าพัก" },
+  bookKicker: { en: "Direct booking", th: "จองโดยตรงกับโรงแรม" },
+  bookTitle: { en: "Choose your dates", th: "เลือกวันเข้าพัก" },
   checkin: { en: "Check-in", th: "เช็คอิน" },
   checkout: { en: "Check-out", th: "เช็คเอาท์" },
   adults: { en: "Adults", th: "ผู้ใหญ่" },

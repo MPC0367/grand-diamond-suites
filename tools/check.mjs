@@ -272,19 +272,23 @@ if (runs("behaviour")) {
     expect((await page.inputValue(sp.in)) === TODAY && (await page.inputValue(sp.ad)) === "3", "planner: stay kept across pages");
     expect((await sp.href()) === `${BOOK_TH}?date=${TODAY}&nights=1&adults=3`, "planner: Thai pages hand over to the Thai booking page", await sp.href());
 
-    /* a page with a planner of its own uses that one: the header button goes to it */
-    await page.click(".header-cta");
-    await page.waitForTimeout(700);
-    expect(await page.evaluate(() => !document.getElementById("plan-dialog").open && document.activeElement && document.activeElement.id === "sp-in"), "header button: on a suite page it goes to that page's planner");
+    /* every "Check dates" opens the booking panel, as on Patravana; on a suite page the panel is that suite's */
+    const sy = await page.evaluate(() => scrollY);
+    /* a plain click where the button is: Playwright's click first scrolls a sticky header's button "into view", which moves the page by itself */
+    { const r = await page.locator(".header-cta").boundingBox(); await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2); }
+    await page.waitForTimeout(800);
+    expect(await page.evaluate((y) => { const d = document.getElementById("plan-dialog"), h = d.querySelector(".handoff"); return d.open && Math.abs(scrollY - y) <= 1 && d.getBoundingClientRect().top <= 1 && document.activeElement && document.activeElement.id === "pd-in" && !!h && h.textContent.includes(document.querySelector("h1").textContent.trim()); }, sy), "header button: on a suite page it opens the booking panel for that suite, and the page does not move");
+    await page.keyboard.press("Escape"); await page.waitForTimeout(700);
 
     /* every other page opens the planner as a sheet; Escape closes it and focus returns */
     await page.goto(BASE + "th/dining/", { waitUntil: "load" });
     await page.click(".header-cta");
     expect(await page.evaluate(() => document.getElementById("plan-dialog").open), "dialog: header button opens the planner");
+    await page.waitForTimeout(400);
     expect(await page.evaluate(() => document.activeElement && document.activeElement.id === "pd-in"), "dialog: focus moves into the planner");
     expect((await page.inputValue("#pd-in")) === TODAY && (await page.inputValue("#pd-ad")) === "3", "dialog: it shows the stay already chosen");
     await page.keyboard.press("Escape");
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(700);
     expect(await page.evaluate(() => !document.getElementById("plan-dialog").open && document.activeElement.classList.contains("header-cta")), "dialog: Escape closes it and focus returns");
 
     /* More menu */
@@ -384,10 +388,12 @@ if (runs("behaviour")) {
     expect((await page.textContent("[data-hero-name]")).trim() === "Penthouse Suite" && (await page.textContent("[data-hero-count]")).trim() === "02 / 03", "hero: next shows the second photograph and names it");
     expect((await page.getAttribute("[data-hero-pause]", "aria-label")) === "Play the photographs", "hero: choosing a photograph stops the sequence");
     expect(await page.evaluate(() => { const i = document.querySelector(".hero__slide.is-on img"); return i && i.complete && i.naturalWidth > 0; }), "hero: the second photograph loaded");
-    /* the hero button is a link to the planner on the page */
-    await page.click("[data-hero-cta]");
+    /* the hero button opens the booking panel too; the page stays where it is */
+    const hy = await page.evaluate(() => scrollY);
+    { const r = await page.locator("[data-hero-cta]").boundingBox(); await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2); }
     await page.waitForTimeout(800);
-    expect(await page.evaluate(() => { const r = document.getElementById("plan").getBoundingClientRect(); return document.activeElement.id === "hp-in" && r.top < innerHeight && r.bottom > 0; }), "hero: Check dates goes to the planner and puts the keyboard in its first field");
+    expect(await page.evaluate((y) => document.getElementById("plan-dialog").open && document.activeElement.id === "pd-in" && Math.abs(scrollY - y) <= 1, hy), "hero: Check dates opens the booking panel with the keyboard in its first field, and the page does not move");
+    await page.keyboard.press("Escape"); await page.waitForTimeout(700);
 
     /* keyboard: first Tab is the skip link, and it works */
     await page.goto(BASE + "en/dining/", { waitUntil: "load" });
@@ -418,10 +424,16 @@ if (runs("behaviour")) {
     expect(await page.evaluate(() => !document.querySelector("[data-mcta]").classList.contains("is-on")), "phone: booking bar waits while the hero button is on screen");
     await page.evaluate(() => window.scrollTo(0, 3200)); await page.waitForTimeout(400);
     expect(await page.evaluate(() => document.querySelector("[data-mcta]").classList.contains("is-on")), "phone: booking bar appears after the hero");
-    /* the home page has its own planner: the bar goes to it, and steps aside while it is on screen */
+    /* the bar opens the booking panel, as on Patravana: the page does not move, before, during or after */
+    const by = await page.evaluate(() => scrollY);
     await page.tap("[data-mcta] [data-open-planner]");
-    await page.waitForTimeout(1200);
-    expect(await page.evaluate(() => { const z = document.getElementById("plan"); const r = z.getBoundingClientRect(); return !document.getElementById("plan-dialog").open && r.top < innerHeight - 120 && r.bottom > 120 && (document.activeElement === z || z.contains(document.activeElement)); }), "phone: on the home page the bar goes to the planner on the page");
+    await page.waitForTimeout(900);
+    expect(await page.evaluate((y) => { const d = document.getElementById("plan-dialog"); return d.open && Math.abs(scrollY - y) <= 1 && d.getBoundingClientRect().top <= 1; }, by), "phone: the booking bar opens the booking panel at the top, and the page stays where it was");
+    expect(await page.evaluate(() => !document.querySelector("[data-mcta]").classList.contains("is-on")), "phone: the bar hides behind the booking panel");
+    await page.tap("#plan-dialog [data-close]"); await page.waitForTimeout(700);
+    expect(await page.evaluate((y) => !document.getElementById("plan-dialog").open && Math.abs(scrollY - y) <= 1, by), "phone: closing the panel leaves the page where it was");
+    /* the bar still steps aside while the page's own planner is on screen */
+    await page.evaluate(() => document.getElementById("plan").scrollIntoView({ block: "center" })); await page.waitForTimeout(500);
     expect(await page.evaluate(() => !document.querySelector("[data-mcta]").classList.contains("is-on")), "phone: the bar steps aside while the page's planner is on screen");
     await page.evaluate(() => window.scrollTo(0, 0)); await page.waitForTimeout(200);
     await page.tap("[data-open-menu]");
@@ -1165,10 +1177,11 @@ if (runs("behaviour")) {
     await page.goto(BASE + "en/dining/", { waitUntil: "load" });
     await page.evaluate(() => window.scrollTo(0, 1400)); await page.waitForTimeout(350);
     await page.click("[data-mcta] [data-open-planner]");
+    await page.waitForTimeout(700);
     await page.selectOption("#pd-ch", "3");
     const sheet = await page.evaluate(() => { const d = document.getElementById("plan-dialog"); const r = d.getBoundingClientRect(); return { top: Math.round(r.top), fits: r.bottom <= innerHeight + 1, scrolls: d.scrollHeight > d.clientHeight, close: d.querySelector("[data-close]").getBoundingClientRect().top >= 0 }; });
     expect(sheet.top >= 0 && sheet.fits && sheet.close, "phone: the planner sheet stays on screen with three children", JSON.stringify(sheet));
-    await page.keyboard.press("Escape"); await page.waitForTimeout(400);
+    await page.keyboard.press("Escape"); await page.waitForTimeout(800);
     expect(await page.evaluate(() => document.querySelector("[data-mcta]").classList.contains("is-on")), "phone: the booking bar returns after Escape");
 
     /* comparison: the address follows the pickers through a language switch */
@@ -1201,9 +1214,9 @@ if (runs("behaviour")) {
     await small.tap("[data-open-menu]"); await small.waitForTimeout(300);
     expect(await small.evaluate(() => { const m = document.getElementById("menu"); return m.open && document.activeElement === m.querySelector("[data-close]"); }), "phone: the menu opens with focus on Close, not on the logo");
     expect(await small.evaluate(() => scrollY) === 0, "phone: the Close button's autofocus does not move the page");
-    /* from the open menu, "Check dates" goes to the page's planner and the menu does not pull focus back */
+    /* from the open menu, "Check dates" closes it and opens the booking panel; the page does not move */
     await small.tap("#menu [data-open-planner]"); await small.waitForTimeout(1200);
-    expect(await small.evaluate(() => { const z = document.getElementById("plan"); const r = z.getBoundingClientRect(); return !document.getElementById("menu").open && r.top < innerHeight && r.bottom > 0 && (document.activeElement === z || z.contains(document.activeElement)); }), "phone: Check dates in the menu closes it and goes to the planner");
+    expect(await small.evaluate(() => !document.getElementById("menu").open && document.getElementById("plan-dialog").open && scrollY === 0 && document.activeElement && document.activeElement.id === "pd-in"), "phone: Check dates in the menu closes it and opens the booking panel");
     await phone.close();
   });
   if (edge) {

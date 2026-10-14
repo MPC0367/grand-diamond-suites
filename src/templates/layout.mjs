@@ -57,7 +57,7 @@ export function contentPolicy(c, { inline = HEAD_SCRIPT } = {}) {
   ].join("; ");
 }
 
-export function layout(c, { main, viewer = null, preloadImage = null, bodyClass = "", jsonld = null }) {
+export function layout(c, { main, viewer = null, preloadImage = null, bodyClass = "", jsonld = null, planSuite = null }) {
   const p = c.page;
   const preview = c.config.mode === "preview";
   const title = `${p.title} | ${c.t(preview ? "titleSuffixPreview" : "titleSuffix")}`;
@@ -125,7 +125,7 @@ ${main}
 ${footer(c)}
 ${mobileBar(c)}
 ${menuDialog(c)}
-${plannerDialog(c)}
+${plannerDialog(c, { suite: planSuite })}
 ${viewer ? viewerDialog(c) : ""}
 <script type="application/json" id="boot">${raw(JSON.stringify(boot).replace(/</g, "\\u003c"))}</script>
 <script src="${c.asset("js/site.js")}?v=${c.stamp}" defer></script>

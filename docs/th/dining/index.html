@@ -23,7 +23,7 @@
 <link rel="icon" href="../../assets/img/favicon.png" type="image/png">
 <link rel="preload" href="../../assets/fonts/noto-sans-thai-thai.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="../../assets/fonts/noto-serif-thai-thai.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="../../assets/fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" as="image" imagesrcset="../../media/ploy-restaurant-dining-room-480.avif 480w, ../../media/ploy-restaurant-dining-room-768.avif 768w, ../../media/ploy-restaurant-dining-room-1024.avif 1024w, ../../media/ploy-restaurant-dining-room-1440.avif 1440w, ../../media/ploy-restaurant-dining-room-1920.avif 1920w" imagesizes="100vw" type="image/avif" fetchpriority="high">
-<link rel="stylesheet" href="../../assets/css/site.css?v=9365d6ee0b">
+<link rel="stylesheet" href="../../assets/css/site.css?v=dff5f6c0ad">
 <script>(function(d){var h=d.documentElement;h.classList.remove("no-js");h.classList.add("js");try{if(!matchMedia("(prefers-reduced-motion: reduce)").matches)h.classList.add("anim")}catch(e){}try{var n=performance.getEntriesByType&&performance.getEntriesByType("navigation")[0],r=n?n.type==="reload":!!(performance.navigation&&performance.navigation.type===1);if(h.classList.contains("anim")&&(r||!sessionStorage.getItem("gd:intro"))){sessionStorage.setItem("gd:intro","1");h.classList.add("intro");var g=function(){h.classList.add("intro-go")};setTimeout(g,350);if(d.fonts)d.fonts.load('400 1em "Newsreader"').then(g,g)}}catch(e){}addEventListener("load",function(){if(!window.__gd)h.className="no-js"})})(document)</script>
 
 </head>
@@ -203,12 +203,14 @@
       </div>
     </div>
   </dialog>
-<dialog class="sheet" id="plan-dialog" aria-labelledby="plan-dialog-title">
-    <div class="sheet__top">
-      <h2 id="plan-dialog-title">วางแผนการเข้าพัก</h2>
-      <button type="button" class="close-btn" data-close>ปิด<svg class="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
-    </div>
-    <div class="sheet__body"><div class="planner-block" data-planner-block>
+<dialog class="sheet sheet--plan" id="plan-dialog" aria-labelledby="plan-dialog-title">
+    <div class="sheet__in">
+      <button type="button" class="round-btn sheet__x" data-close aria-label="ปิด"><svg class="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+      <div class="sheet__head">
+        <p class="eyebrow">จองโดยตรงกับโรงแรม</p>
+        <h2 id="plan-dialog-title">เลือกวันเข้าพัก</h2>
+      </div>
+      <div class="sheet__body"><div class="planner-block" data-planner-block>
     <form class="planner planner--compact" data-planner novalidate autocomplete="off" action="https://www.granddiamondsuites.com/th/booking" method="get" target="_blank" rel="noopener noreferrer" aria-label="วางแผนการเข้าพัก">
       <div class="planner__fields">
         <div class="field field--date">
@@ -264,6 +266,7 @@
     </div>
     <p class="planner__note"><span class="js-only">ไม่จำเป็นต้องระบุวันที่ การจองจะดำเนินต่อในหน้าจองทางการของโรงแรม โดยเลือกประเภทห้องและราคา รวมถึงกรอกรหัสโปรโมชั่นได้ในหน้านั้น หากเข้าพักเกิน 8 ท่าน หรือต้องการมากกว่าหนึ่งห้อง สามารถเพิ่มห้องได้ในหน้าจอง <a class="link" data-larger-party href="../../th/contact/?about=family">สอบถามเรื่องการเข้าพักเป็นกลุ่ม</a></span><span class="nojs-only">ตรวจสอบห้องว่างได้ที่หน้าจองทางการของโรงแรม โดยเลือกวันเข้าพัก ประเภทห้อง และราคาในหน้านั้น</span></p>
   </div></div>
+    </div>
   </dialog>
 <dialog class="viewer" id="viewer" aria-label="หน้าต่างดูภาพ">
     <div class="viewer__top">
@@ -285,6 +288,6 @@
     <p class="viewer__cap"><span data-cap aria-live="polite" aria-atomic="true"></span><a data-link hidden>ดูห้องนี้</a></p>
   </dialog>
 <script type="application/json" id="boot">{"lang":"th","booking":{"page":"https://www.granddiamondsuites.com/th/booking","host":"www.granddiamondsuites.com","maxNights":31,"maxAdults":8,"maxChildren":3,"maxChildAge":17,"maxGuests":8},"t":{"msgNeedBoth":"กรุณาเลือกทั้งวันเช็คอินและวันเช็คเอาท์ หรือล้างวันที่เพื่อค้นหาโดยไม่ระบุวัน","msgNeedIn":"กรุณาเลือกวันเช็คอิน หรือล้างวันที่เพื่อค้นหาโดยไม่ระบุวัน","msgNeedOut":"กรุณาเลือกวันเช็คเอาท์ หรือล้างวันที่เพื่อค้นหาโดยไม่ระบุวัน","msgPast":"วันเช็คอินต้องไม่ก่อนวันนี้ตามเวลากรุงเทพฯ คือ {date}","msgOrder":"วันเช็คเอาท์ต้องอยู่หลังวันเช็คอิน","msgLong":"จากการตรวจสอบ หน้าจองของโรงแรมรับการเข้าพักได้ไม่เกิน {n} คืน สำหรับการเข้าพัก {m} คืน สามารถไปยังหน้าจองแล้วปรับวันที่ หรือสอบถามโรงแรมเรื่องการเข้าพักระยะยาว","msgParty":"หน้าจองของโรงแรมค้นหาได้ครั้งละไม่เกิน {n} ท่าน สำหรับผู้เข้าพัก {m} ท่าน สามารถเพิ่มห้องในหน้าจอง หรือสอบถามโรงแรมเรื่องการเข้าพักเป็นกลุ่ม","msgInvalid":"กรุณาระบุวันที่ให้ถูกต้อง","msgAdjusted":"ปรับวันเช็คเอาท์เป็น {date} เพื่อให้อยู่หลังวันเช็คอิน","msgNights":"{n} คืน {a}","msgNight":"1 คืน {a}","to":"ถึง","adultsOne":"ผู้ใหญ่ 1 ท่าน","adultsMany":"ผู้ใหญ่ {n} ท่าน","childrenOne":"เด็ก 1 คน","childrenMany":"เด็ก {n} คน","msgAges":"กรุณาเลือกอายุของเด็กแต่ละคน ณ วันเข้าพัก","photoOf":"ภาพที่ {i} จาก {n}","copied":"คัดลอกที่อยู่แล้ว","copyFailed":"คัดลอกไม่สำเร็จ กรุณาเลือกข้อความที่อยู่แล้วคัดลอกด้วยตนเอง","pause":"หยุดเลื่อนภาพอัตโนมัติ","play":"เลื่อนภาพอัตโนมัติ","reelPause":"หยุดเลื่อนแกลเลอรี","reelPlay":"เลื่อนแกลเลอรีอัตโนมัติ","showing":"แสดง {n} รายการ","photosShown":"{n} ภาพ","sep":" ","stop":" ","msgStay":"{s} ตั้งแต่วันที่ {a} ถึง {b}","recoverNoteLong":"วันที่และจำนวนผู้เข้าพักจะถูกส่งต่อตามที่ระบุไว้ทุกประการ โดยไม่มีการลดจำนวนคืน หน้าจองจะแสดงข้อจำกัดของตนเอง","recoverNoteParty":"ระบบจะส่งต่อเฉพาะวันที่ กรุณาเพิ่มห้องและระบุผู้เข้าพักของแต่ละห้องในหน้าจอง","recoverNoteAsk":"หน้าสอบถามจะกรอกวันที่และจำนวนผู้เข้าพักให้แล้ว การสอบถามไม่ถือเป็นการจองห้องพัก","notSelected":"ยังไม่ได้เลือก","datesPartial":"ยังไม่ครบ กรุณาเลือกทั้งสองวัน","datesRange":"{r} ({n})","nightsOne":"1 คืน","nightsMany":"{n} คืน","agedList":"อายุ {ages}","agesNeeded":"ยังไม่ได้ระบุอายุ","and":" และ ","ageUnder1Short":"ต่ำกว่า 1 ปี","ageYears":"{n} ปี","msgCleared":"ล้างวันที่แล้ว จำนวนผู้เข้าพักยังคงเดิม","fitOver":"หน้าจองระบุว่า{suite}รองรับผู้เข้าพักสูงสุด {n} ท่าน แต่คณะของคุณมี {m} ท่าน","fitOthers":"ห้องที่ระบุว่ารองรับได้ {m} ท่านขึ้นไป","fitRooms":"หรือจองมากกว่าหนึ่งห้องในหน้าจองก็ได้ จำนวนที่ระบุไว้ไม่ได้ยืนยันว่ามีห้องว่าง","photoFailed":"ไม่สามารถโหลดภาพนี้ได้"},"viewer":{"ploy-restaurant-dining-room":{"f":"ploy-restaurant-dining-room","wa":[480,768,1024,1440,1920],"ww":[480,768,1024,1440],"j":1440,"w":1920,"h":1280,"fx":52,"fy":56,"alt":"ห้องอาหารมีโต๊ะท็อปสีเขียว เก้าอี้ไม้ และเคาน์เตอร์บุฟเฟต์รอบเสา กระจกบานสูงมองเห็นต้นไม้ด้านนอก","cap":"ห้องอาหารและเคาน์เตอร์บุฟเฟต์","capShort":"ห้องอาหารและเคาน์เตอร์บุฟเฟต์","href":null},"ploy-restaurant-breakfast-poolside":{"f":"ploy-restaurant-breakfast-poolside","wa":[480,768,1024,1440],"ww":[480,768,1024,1440],"j":1440,"w":1477,"h":1108,"fx":50,"fy":56,"alt":"โต๊ะอาหารเช้าริมกระจก มีไข่ดาว ครัวซองต์ ผลไม้ และน้ำผลไม้ มองเห็นสระว่ายน้ำด้านนอก","cap":"โต๊ะอาหารเช้าริมกระจก มองเห็นสระว่ายน้ำ","capShort":"โต๊ะอาหารเช้าริมกระจก มองเห็นสระว่ายน้ำ","href":null}},"mediaBase":"../../media/","locale":"th-TH-u-ca-gregory"}</script>
-<script src="../../assets/js/site.js?v=9365d6ee0b" defer></script>
+<script src="../../assets/js/site.js?v=dff5f6c0ad" defer></script>
 </body>
 </html>
