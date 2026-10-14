@@ -17,6 +17,7 @@ export const home = {
       th: "ห้องสวีท 6 แบบ ติดแพลทินัม แฟชั่นมอลล์ ตั้งแต่ห้องขนาดกะทัดรัดสำหรับ 2 ท่าน ไปจนถึงห้องสวีท 2 ห้องนอนสำหรับครอบครัวและกลุ่มเพื่อน",
     },
     explore: { en: "Explore suites", th: "ดูห้องสวีท" },
+    street: { en: "Phetchaburi Road", th: "ถนนเพชรบุรี" },
     compare: { en: "Compare the six suites", th: "เปรียบเทียบห้องสวีททั้ง 6 แบบ" },
     slides: [
       { photo: "luxury-suite-bed-sofa-city-window", suite: "luxury-suite" },
@@ -125,7 +126,7 @@ export const home = {
     title: { en: "Look around.", th: "ชมภาพโรงแรม" },
     lead: { en: "Photographs from the hotel's own website, each labelled with what it shows.", th: "ภาพถ่ายจากเว็บไซต์ของโรงแรม พร้อมคำบรรยายสิ่งที่อยู่ในภาพ" },
     link: { en: "Open the gallery", th: "เปิดแกลเลอรี" },
-    photos: ["deluxe-suite-bathtub-city-view", "family-suite-three-beds-city-windows", "executive-suite-living-dining-windows", "penthouse-suite-living-room-double-height"],
+    photos: ["deluxe-suite-bathtub-city-view", "penthouse-suite-terrace-whirlpool", "family-suite-three-beds-city-windows", "executive-suite-living-dining-windows", "junior-suite-living-room", "penthouse-suite-living-room-double-height", "hotel-pool-and-tower", "hotel-entrance"],
   },
 
   essentials: {

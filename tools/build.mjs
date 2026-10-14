@@ -217,6 +217,13 @@ await writeFile(path.join(OUT, ".nojekyll"), "", "utf8");
   new Script(tidy(out), { filename: "site.js" });
   await writeFile(file, "/* Grand Diamond Suites concept. Source, with its comments: src/assets/js/site.js in the repository. */\n" + tidy(out), "utf8");
 }
+/* The stylesheet likewise: its comments are for whoever reads src/assets/css/site.css. */
+{
+  const file = path.join(OUT, "assets/css/site.css"), src = await readFile(file, "utf8");
+  if (/["'][^"'\n]*\/\*/.test(src)) throw new Error("site.css: a comment mark inside a string; take the comments out by hand");
+  const out = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/[ \t]+$/gm, "").replace(/\n{2,}/g, "\n");
+  await writeFile(file, "/* Grand Diamond Suites concept. Source, with its comments: src/assets/css/site.css in the repository. */\n" + out, "utf8");
+}
 
 const pages = pageList();
 const report = [];

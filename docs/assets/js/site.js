@@ -400,6 +400,8 @@
     });
   });
   var progress = $(".progress");
+  var overHead = $(".site-header[data-over]"), rail = $("[data-rail]"), railLinks = rail ? $$("a", rail) : [];
+  var railFor = railLinks.map(function (a) { return d.getElementById(a.getAttribute("href").slice(1)); });
   var bar = $("[data-mcta]");
   var heroCta = $("[data-hero-cta]");
   function syncBar() {
@@ -448,6 +450,16 @@
     }
     revealPass(false);
     syncBar();
+    var y = window.scrollY || root.scrollTop;
+    if (overHead) overHead.classList.toggle("is-solid", y > 6);
+    if (rail) {
+      var at = -1;
+      railFor.forEach(function (sec, i) { if (sec && sec.getBoundingClientRect().top < innerHeight * 0.45) at = i; });
+      var last = railFor[railFor.length - 1];
+      if (last && last.getBoundingClientRect().bottom < innerHeight * 0.3) at = -1;
+      railLinks.forEach(function (a, i) { if (i === at) a.setAttribute("aria-current", "true"); else a.removeAttribute("aria-current"); });
+      rail.classList.toggle("is-on", at > -1);
+    }
   }
   addEventListener("scroll", onScroll, { passive: true });
   addEventListener("resize", function () { lastPass = 0; onScroll(); reserveBar(); });
@@ -459,6 +471,86 @@
   var mediaBase = boot.mediaBase || "";
   function setFor(m, ext) { return (ext === "avif" ? m.wa : m.ww).map(function (w) { return mediaBase + m.f + "-" + w + "." + ext + " " + w + "w"; }).join(", "); }
   function jpgFor(m) { return mediaBase + m.f + "-" + m.j + ".jpg"; }
+  var clocks = $$("[data-clock]"), sunEl = $("[data-sunset]");
+  if (clocks.length || sunEl) {
+    var two = function (n) { return ("0" + n).slice(-2); };
+    var tick2 = function () {
+      try {
+        var hm = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Bangkok" }).format(new Date());
+        clocks.forEach(function (el) { el.textContent = el.getAttribute("data-fmt").replace("{t}", hm); el.hidden = false; });
+        var sv = $("[data-serving]");
+        if (sv) {
+          var mins = function (t) { return +t.slice(0, 2) * 60 + +t.slice(3, 5); }, nowM = mins(hm), on = null;
+          JSON.parse(sv.getAttribute("data-serving")).forEach(function (s) { if (nowM >= mins(s.o) && nowM < mins(s.c)) on = s; });
+          sv.hidden = !on;
+          if (on) sv.textContent = sv.getAttribute("data-fmt").replace("{name}", on.n).replace("{end}", on.c);
+        }
+      } catch (e) {}
+    };
+    tick2(); setInterval(tick2, 20000);
+    if (sunEl) {
+      var now = new Date(), day = Math.floor((now - Date.UTC(now.getUTCFullYear(), 0, 0)) / 864e5), g = 2 * Math.PI / 365 * (day - 0.5), rd = Math.PI / 180;
+      var eq = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+      var dec = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+      var lat = 13.7504 * rd, ha = Math.acos(Math.cos(90.833 * rd) / (Math.cos(lat) * Math.cos(dec)) - Math.tan(lat) * Math.tan(dec)) / rd;
+      var m = Math.round(720 - 4 * (100.5385 - ha) - eq + 420);
+      sunEl.textContent = sunEl.getAttribute("data-fmt").replace("{t}", two(Math.floor(m / 60) % 24) + ":" + two(m % 60));
+      sunEl.hidden = false;
+    }
+  }
+  var counters = reduce ? [] : $$("[data-count]").filter(function (el) { return /^\d+$/.test(el.textContent); });
+  var countPass = function () {
+    counters = counters.filter(function (el) {
+      if (el.getBoundingClientRect().top > innerHeight * 0.9) return true;
+      var to = +el.getAttribute("data-count"), t0 = 0;
+      var step = function (t) { if (!t0) t0 = t; var k = Math.min(1, (t - t0) / 1300); el.textContent = Math.round(to * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+      return false;
+    });
+  };
+  if (counters.length) { counters.forEach(function (el) { if (el.getBoundingClientRect().top > innerHeight * 0.9) el.textContent = "0"; }); addEventListener("scroll", countPass, { passive: true }); countPass(); }
+  var bands = reduce ? [] : $$(".band__media");
+  if (bands.length) {
+    var bandRaf = 0;
+    var bandPass = function () {
+      bandRaf = 0;
+      bands.forEach(function (b) { var r = b.parentNode.getBoundingClientRect(); if (r.bottom < 0 || r.top > innerHeight) return; b.style.transform = "translate3d(0," + ((r.top + r.height / 2 - innerHeight / 2) * -0.08).toFixed(1) + "px,0)"; });
+    };
+    addEventListener("scroll", function () { if (!bandRaf) bandRaf = requestAnimationFrame(bandPass); }, { passive: true });
+    bandPass();
+  }
+  $$("[data-reel]").forEach(function (reel) {
+    var track = $("[data-reel-track]", reel), pv = $("[data-reel-prev]", reel), nx = $("[data-reel-next]", reel);
+    if (!track) return;
+    var by = function (dir) { var card = track.firstElementChild; track.scrollBy({ left: dir * (card ? card.getBoundingClientRect().width + 18 : track.clientWidth * 0.8), behavior: reduce ? "auto" : "smooth" }); };
+    var ends = function () { if (pv) pv.disabled = track.scrollLeft < 4; if (nx) nx.disabled = track.scrollLeft > track.scrollWidth - track.clientWidth - 4; };
+    if (pv) pv.addEventListener("click", function () { by(-1); });
+    if (nx) nx.addEventListener("click", function () { by(1); });
+    track.addEventListener("scroll", ends, { passive: true }); addEventListener("resize", ends); ends();
+    var grab = null;
+    track.addEventListener("pointerdown", function (ev) { if (ev.pointerType !== "mouse" || ev.button) return; grab = { x: ev.clientX, left: track.scrollLeft, moved: false }; });
+    addEventListener("pointermove", function (ev) {
+      if (!grab) return;
+      var dx = ev.clientX - grab.x;
+      if (!grab.moved && Math.abs(dx) > 6) { grab.moved = true; reel.classList.add("is-dragging"); }
+      if (grab.moved) track.scrollLeft = grab.left - dx;
+    });
+    addEventListener("pointerup", function () {
+      if (!grab) return;
+      var moved = grab.moved; grab = null;
+      if (!moved) return;
+      setTimeout(function () { reel.classList.remove("is-dragging"); }, 0);
+      var card = track.firstElementChild, w = card ? card.getBoundingClientRect().width + 18 : 1;
+      track.scrollTo({ left: Math.round(track.scrollLeft / w) * w, behavior: reduce ? "auto" : "smooth" });
+    });
+    track.addEventListener("dragstart", function (ev) { ev.preventDefault(); });
+    var near = function () {
+      if (reel.getBoundingClientRect().top > innerHeight * 1.5) return;
+      $$("img[loading=lazy]", track).forEach(function (i) { i.loading = "eager"; });
+      removeEventListener("scroll", near);
+    };
+    addEventListener("scroll", near, { passive: true }); near();
+  });
   var hero = $("[data-hero]");
   if (hero) {
     var slides = $$(".hero__slide", hero);
@@ -472,7 +564,7 @@
         if (!m || s.firstChild) return;
         var pic = d.createElement("picture");
         [["image/avif", "avif"], ["image/webp", "webp"]].forEach(function (t) {
-          var so = d.createElement("source"); so.type = t[0]; so.sizes = "(min-width: 900px) 58vw, 100vw"; so.srcset = setFor(m, t[1]); pic.appendChild(so);
+          var so = d.createElement("source"); so.type = t[0]; so.sizes = "100vw"; so.srcset = setFor(m, t[1]); pic.appendChild(so);
         });
         var im = d.createElement("img");
         im.alt = m.alt; im.width = m.w; im.height = m.h; im.decoding = "async";
@@ -495,6 +587,7 @@
       }
       if (kCap) kCap.textContent = s.getAttribute("data-cap");
       if (kCount) kCount.textContent = ("0" + (cur + 1)).slice(-2) + " / " + ("0" + slides.length).slice(-2);
+      $$(".slide-bars i", hero).forEach(function (b, j) { b.classList.remove("is-on"); if (j === cur) { void b.offsetWidth; b.classList.add("is-on"); } });
       if (manual && kLive) kLive.textContent = s.getAttribute("data-name") + (T.stop || ". ") + s.getAttribute("data-cap");
     };
     var paintPause = function () {
@@ -502,6 +595,7 @@
       pauseBtn.setAttribute("aria-label", playing ? T.pause : T.play);
       pauseBtn.classList.toggle("is-paused", !playing);
       hero.classList.toggle("is-paused", !playing);
+      hero.classList.toggle("is-running", playing);
     };
     var tick = function () {
       clearTimeout(timer);

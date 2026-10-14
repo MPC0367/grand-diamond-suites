@@ -2200,7 +2200,7 @@ if (runs("acceptance")) {
   /* ---------- AC-53 to AC-55: photographs, stability, budgets ---------- */
   await block("AC-53 to AC-55 photographs and budgets", async () => {
     const sizes = [];
-    for (const [label, opts, wantW] of [["phone, 390 at 2x", phoneOpts, [768, 1024]], ["desktop, 1440 at 1x", { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 }, [1024]], ["large desktop, 1920 at 1x", { viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 }, [1440]]]) {
+    for (const [label, opts, wantW] of [["phone, 390 at 2x", phoneOpts, [768, 1024]], ["desktop, 1440 at 1x", { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 }, [1440]], ["large desktop, 1920 at 1x", { viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 }, [1920]]]) {
       const ctx = await newContext(opts);
       const page = await ctx.newPage();
       const media = [];

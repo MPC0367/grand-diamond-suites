@@ -173,6 +173,14 @@ export const ui = {
   showPhoto: { en: "Show photograph {i}", th: "แสดงภาพที่ {i}" },
   allPhotos: { en: "All {n} photographs", th: "ดูภาพทั้งหมด {n} ภาพ" },
   pictured: { en: "Pictured", th: "ในภาพ" },
+  /* the opening screen: the time in Bangkok, and today's sunset worked out for the hotel's own coordinates */
+  localTime: { en: "{t} in Bangkok", th: "{t} น. เวลากรุงเทพฯ" },
+  sunset: { en: "Sunset about {t}", th: "พระอาทิตย์ตกราว {t} น." },
+  onThisPage: { en: "On this page", th: "ในหน้านี้" },
+  /* Ploy Restaurant, while one of its published services is on; outside those hours nothing is claimed */
+  servingNow: { en: "{name} now, until {end}", th: "{name} ตอนนี้ ถึง {end} น." },
+  prevPhotos: { en: "Earlier photographs", th: "ภาพก่อนหน้า" },
+  nextPhotos: { en: "More photographs", th: "ภาพถัดไป" },
   prev: { en: "Previous", th: "ก่อนหน้า" },
   next: { en: "Next", th: "ถัดไป" },
   pause: { en: "Pause the photographs", th: "หยุดเลื่อนภาพอัตโนมัติ" },

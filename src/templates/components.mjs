@@ -65,15 +65,16 @@ export const newTab = (c) => html`<span class="sr-only"> (${c.t("newTab")})</spa
 /** The same notice on a button that the script turns into an in-page planner: the script removes it when it takes over the click. */
 export const newTabNote = (c) => html`<span class="sr-only" data-newtab-note> (${c.t("newTab")})</span>`;
 
-export function eyebrow(c, text) {
-  return html`<p class="eyebrow">${text}</p>`;
+/** A section's small label. `num` numbers the chapters of a long page ("01"), as the side rail does. */
+export function eyebrow(c, text, num = null) {
+  return html`<p class="eyebrow">${num ? html`<span class="eyebrow__n">${num}</span>` : ""}${text}</p>`;
 }
 
-export function sectionHead(c, { eyebrowText, title, lead = null, side = null, id = null, level = 2 }) {
+export function sectionHead(c, { eyebrowText, title, lead = null, side = null, id = null, level = 2, num = null }) {
   const tag = level === 1 ? "h1" : "h2";
   return html`<div class="${cx("section-head", side && "section-head--split")}">
     <div class="section-head__main" style="display:grid;gap:18px">
-      ${eyebrowText ? eyebrow(c, eyebrowText) : ""}
+      ${eyebrowText ? eyebrow(c, eyebrowText, num) : ""}
       <${raw(tag)}${id ? raw(` id="${e(id)}"`) : ""}>${title}</${raw(tag)}>
       ${lead ? html`<p class="lead">${lead}</p>` : ""}
     </div>
@@ -225,9 +226,12 @@ export function conceptStrip(c) {
 
 export function header(c) {
   const moreCurrent = MORE.some((m) => isCurrent(c, m.path));
-  return html`<header class="site-header" id="top">
+  /* On the home page the header lies over the opening photograph until the page is scrolled, so it carries
+     the light logo as well as the gold one. */
+  const over = c.page && c.page.id === "home";
+  return html`<header class="site-header" id="top"${over ? raw(" data-over") : ""}>
     <div class="wrap site-header__in">
-      <a class="brand" href="${c.href("")}" aria-label="${c.l(c.hotel.name)}, ${c.t("home")}"><picture><source type="image/webp" srcset="${c.asset("img/logo-gold.webp")}"><img src="${c.asset("img/logo-gold.png")}" width="669" height="251" alt=""></picture></a>
+      <a class="brand" href="${c.href("")}" aria-label="${c.l(c.hotel.name)}, ${c.t("home")}"><picture class="brand__dark"><source type="image/webp" srcset="${c.asset("img/logo-gold.webp")}"><img src="${c.asset("img/logo-gold.png")}" width="669" height="251" alt=""></picture>${over ? html`<picture class="brand__light"><source type="image/webp" srcset="${c.asset("img/logo-light.webp")}"><img src="${c.asset("img/logo-light.png")}" width="588" height="220" alt=""></picture>` : ""}</a>
       <nav class="nav" aria-label="${c.t("navMain")}">
         <ul class="nav__list">
           ${NAV.map((n) => html`<li><a class="nav__link" href="${c.href(n.path)}"${isCurrent(c, n.path) ? raw(' aria-current="page"') : ""}>${c.t(n.key)}</a></li>`)}
@@ -298,10 +302,12 @@ export function footer(c) {
           ${col(c.t("follow"), [["Facebook", h.links.facebook, true], ["Instagram", h.links.instagram, true], ["LINE", h.links.line, true]])}
         </nav>
       </div>
+      <svg class="footer-mark" viewBox="0 0 1000 120" aria-hidden="true" focusable="false"><text x="500" y="104" text-anchor="middle" textLength="992" lengthAdjust="spacingAndGlyphs">Grand Diamond</text></svg>
       <div class="footer-base">
         ${c.config.mode === "preview" ? html`<p>${c.t("conceptFooter", { date: c.dateLong(c.config.factsChecked) })} <a class="link" href="${h.links.official[c.lang]}" target="_blank" rel="noopener">granddiamondsuites.com${newTab(c)}</a></p>` : ""}
         <div class="footer-meta">
           <span>${c.config.mode === "preview" ? c.t("conceptCopy", { year: c.config.factsChecked.slice(0, 4) }) : html`© ${c.config.factsChecked.slice(0, 4)} ${c.l(h.name)}`}</span>
+          <span class="footer-clock js-only" data-clock data-fmt="${c.t("localTime")}" hidden></span>
           ${langSwitch(c)}
         </div>
         ${o2Credit(c)}
