@@ -33,7 +33,7 @@ export const homeDef = {
   <div class="wrap hero__in">
     <div class="hero__panel">
       ${eyebrow(c, c.l(T.hero.eyebrow))}
-      <h1 class="display" id="hero-title">${marked(c, T.hero.title)}</h1>
+      <h1 class="sr-only" id="hero-title">${c.l(T.hero.title)}</h1>
       <p class="hero__sub">${c.l(T.hero.sub)}</p>
       <div class="hero__actions">
         <a class="btn btn--paper" href="#plan" data-open-planner data-hero-cta>${c.t("checkDates")}</a>
@@ -44,7 +44,7 @@ export const homeDef = {
     <div class="hero__foot">
       <p class="hero__meta"><span>${c.l(T.hero.street)}</span><span class="js-only" data-clock data-fmt="${c.t("localTime")}" hidden></span><span class="js-only" data-sunset data-fmt="${c.t("sunset")}" hidden></span></p>
       <div class="hero__label">
-        <p class="plate"><span class="plate__k">${c.t("pictured")}</span><span class="plate__name" data-hero-name>${first.href ? html`<a href="${first.href}">${first.name}</a>` : first.name}</span><span class="plate__cap" data-hero-cap>${first.cap}</span></p>
+        <p class="plate"><span class="plate__name" data-hero-name>${first.href ? html`<a href="${first.href}">${first.name}</a>` : first.name}</span><span class="plate__cap" data-hero-cap>${first.cap}</span></p>
         <div class="slide-ctl js-only" data-hero-ctl>
           <span class="slide-count" data-hero-count aria-hidden="true">01 / ${String(slides.length).padStart(2, "0")}</span>
           <span class="slide-bars" aria-hidden="true">${slides.map((s, i) => html`<i${i === 0 ? raw(' class="is-on"') : ""}></i>`)}</span>
@@ -63,12 +63,12 @@ export const homeDef = {
   <div class="wrap" data-dock>${planner(c, { id: "hp" })}</div>
 </section>`;
 
-    const reasons = html`<section class="section section--tight" aria-labelledby="reasons-title">
+    const reasons = html`<section class="section section--tight only-wide" aria-labelledby="reasons-title">
   <div class="wrap">
     <h2 class="sr-only" id="reasons-title">${c.l(T.reasons.heading)}</h2>
     <div class="reasons">
       ${T.reasons.items.map((r, i) => html`<div class="reason reveal" data-d="${i}">
-        <h3 class="reason__k">${/^\d+$/.test(c.l(r.key)) ? html`<span data-count="${c.l(r.key)}">${c.l(r.key)}</span>` : c.l(r.key)} <small>${c.l(r.unit)}</small></h3>
+        <h3 class="reason__k">${/^\d+$/.test(c.l(r.key)) ? html`<span data-count="${c.l(r.key)}">${c.l(r.key)}</span>` : c.l(r.key)}${r.word ? " " + c.l(r.word) : ""} <small>${c.l(r.unit)}</small></h3>
         <p>${c.l(r.text)}</p>
         ${arrowLink(c, r.href, c.l(r.link))}
       </div>`)}
@@ -82,11 +82,11 @@ export const homeDef = {
       eyebrowText: c.l(T.finder.eyebrow), title: marked(c, T.finder.title), lead: c.l(T.finder.lead), id: "finder-title", num: "01",
       side: html`<p class="small muted">${c.l(T.finder.aside)}</p>${arrowLink(c, c.href("suites/compare/"), c.l(T.finder.compare))}`,
     })}
-    ${finder(c, { idPrefix: "f", headingLevel: 3, eagerFirst: false })}
+    <div data-list-phone>${finder(c, { idPrefix: "f", headingLevel: 3, eagerFirst: false })}</div>
   </div>
 </section>`;
 
-    const band = html`<section class="band on-deep on-photo" aria-labelledby="band-title">
+    const band = html`<section class="band on-deep on-photo only-wide" aria-labelledby="band-title">
   <div class="band__media">${pic(c, T.band.photo, { sizes: "100vw" })}</div>
   <div class="wrap band__in">
     <div class="band__grid">
@@ -99,7 +99,7 @@ export const homeDef = {
   </div>
 </section>`;
 
-    const address = html`<section class="section" id="address" aria-labelledby="address-title">
+    const address = html`<section class="section only-wide" id="address" aria-labelledby="address-title">
   <div class="wrap">
     ${sectionHead(c, {
       eyebrowText: c.l(T.address.eyebrow), title: marked(c, T.address.title), lead: c.l(T.address.lead), id: "address-title", num: "02",
@@ -121,7 +121,7 @@ export const homeDef = {
   </div>
 </section>`;
 
-    const ploy = html`<section class="section section--paper" id="ploy" aria-labelledby="ploy-title">
+    const ploy = html`<section class="section section--paper only-wide" id="ploy" aria-labelledby="ploy-title">
   <div class="wrap split split--flip">
     <div class="split__media reveal">${shot(c, "ploy-restaurant-dining-room", { group: "home", sizes: "(min-width: 900px) 56vw, 100vw" })}</div>
     <div class="split__body reveal" data-d="1">
@@ -141,7 +141,7 @@ export const homeDef = {
     /* facilities: a dark chapter of photograph cards, then everything else the hotel lists */
     const facPhoto = { pool: "hotel-pool-loungers", fitness: "hotel-fitness-centre", dining: "ploy-restaurant-breakfast-poolside", meetings: "hotel-meeting-room" };
     const facCards = c.hotel.facilities.filter((f) => facPhoto[f.key] && f.text);
-    const facilities = html`<section class="section section--deep on-deep" id="facilities" aria-labelledby="fac-title">
+    const facilities = html`<section class="section section--deep on-deep only-wide" id="facilities" aria-labelledby="fac-title">
   <div class="wrap">
     ${sectionHead(c, {
       eyebrowText: c.l(T.facilities.eyebrow), title: c.l(T.facilities.title), lead: c.l(T.facilities.lead), id: "fac-title", num: "04",
@@ -160,7 +160,7 @@ export const homeDef = {
   </div>
 </section>`;
 
-    const gallery = html`<section class="section section--paper" id="look-around" aria-labelledby="gal-title">
+    const gallery = html`<section class="section section--paper only-wide" id="look-around" aria-labelledby="gal-title">
   <div class="wrap">
     ${sectionHead(c, {
       eyebrowText: c.l(T.gallery.eyebrow), title: c.l(T.gallery.title), lead: c.l(T.gallery.lead), id: "gal-title", num: "05",
@@ -179,7 +179,7 @@ export const homeDef = {
   </div>
 </section>`;
 
-    const essentials = html`<section class="section" id="essentials" aria-labelledby="ess-title">
+    const essentials = html`<section class="section only-wide" id="essentials" aria-labelledby="ess-title">
   <div class="wrap cols-rail">
     <div class="cols-rail__head">
       ${eyebrow(c, c.l(T.essentials.eyebrow), "06")}
@@ -192,7 +192,7 @@ export const homeDef = {
 </section>`;
 
     const towers = c.media(T.closing.photo);
-    const closing = html`<section class="section section--deep on-deep" aria-labelledby="closing-title">
+    const closing = html`<section class="section section--deep on-deep only-wide" aria-labelledby="closing-title">
   <div class="wrap closing">
     <div class="closing__body">
       <h2 class="closing__title" id="closing-title">${marked(c, T.closing.title)}</h2>
@@ -210,12 +210,30 @@ export const homeDef = {
 </section>`;
 
     const chapters = [["find-your-space", T.finder.eyebrow], ["address", T.address.eyebrow], ["ploy", T.ploy.eyebrow], ["facilities", T.facilities.eyebrow], ["look-around", T.gallery.eyebrow], ["essentials", T.essentials.eyebrow]];
+    /* On a phone the page stops after the suites (as on Patravana): every other part is a card that opens its
+       own page. On a wider screen these cards are not shown and the page runs on as before. */
+    const H = T.hub;
+    const hubCard = (k) => html`<li><a class="hub__card" href="${c.href(k.path)}">
+        <span class="hub__img">${k.map ? html`<img src="${c.asset(`img/map-${c.lang}-960.webp`)}" alt="" loading="lazy" width="960" height="720">` : pic(c, k.photo, { sizes: "(max-width: 47.99em) 46vw, 2px", alt: "" })}</span>
+        <span class="hub__name">${c.l(k.name)}</span><span class="hub__sub">${c.l(k.sub)}</span>
+      </a></li>`;
+    const hub = html`<section class="hub" aria-labelledby="hub-title">
+  <div class="wrap">
+    <div class="hub__intro">${eyebrow(c, c.l(H.kicker))}<p class="hub__lede">${c.l(H.lede)}</p></div>
+    <h2 class="hub__title" id="hub-title">${c.l(H.title)}</h2>
+    <ul class="hub__grid">
+      <li><a class="hub__card hub__card--rates" href="${c.href("offers/")}"><span class="hub__k">${c.l(H.rates.k)}</span><span class="hub__head">${c.l(H.rates.head)}</span><span class="hub__sub">${c.l(H.rates.sub)}</span><span class="hub__go">${c.l(H.rates.go)}${icon("arrow")}</span></a></li>
+      ${H.cards.map(hubCard)}
+    </ul>
+  </div>
+</section>`;
+
     const rail = html`<nav class="rail js-only" aria-label="${c.t("onThisPage")}" data-rail>
   <ol>${chapters.map(([id, name], i) => html`<li><a href="#${id}"><span class="rail__n">${String(i + 1).padStart(2, "0")}</span><span class="rail__t">${c.l(name)}</span></a></li>`)}</ol>
 </nav>`;
 
     return {
-      main: html`${hero}${dock}${reasons}${find}${band}${address}${ploy}${facilities}${gallery}${essentials}${closing}${rail}`,
+      main: html`${hero}${dock}${reasons}${find}${hub}${band}${address}${ploy}${facilities}${gallery}${essentials}${closing}${rail}`,
       preloadImage: { srcset: srcsetOf(c, first.m, "avif"), sizes: HERO_SIZES },
     };
   },

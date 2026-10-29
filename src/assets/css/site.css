@@ -133,7 +133,6 @@ body {
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  padding-bottom: var(--mcta-h);
 }
 :lang(th) body, body:lang(th) { line-height: 1.8; }
 
@@ -459,6 +458,39 @@ dialog::backdrop { background: rgba(23, 35, 41, .55); }
 @keyframes intro-out { from { clip-path: inset(0 0 0 0); } to { clip-path: inset(0 0 100% 0); visibility: hidden; } }
 @media print { .intro-screen { display: none !important; } }
 
+/* === Phone home (as on Patravana) =========================================
+   On a phone the home page keeps the opening photograph, the planner and the suites. Every other part is a
+   card that opens its own page. Wider screens do not show the cards and keep the whole page. */
+.hub { display: none; }
+@media (max-width: 47.99em), (pointer: coarse) and (max-width: 62.5em) and (max-height: 37.5em) {
+  .only-wide { display: none !important; }
+  .hub { display: block; padding-block: 44px 56px; background: var(--canvas); }
+  /* a compact footer: its link lists run on in lines (the menu holds them too) */
+  .js .footer-top { gap: 28px; }
+  .js .footer-cols { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .js .footer-col h2 { margin-bottom: 4px; }
+  .js .footer-col ul { display: flex; flex-wrap: wrap; column-gap: 18px; }
+  .js .footer-col a { min-height: 36px; }
+}
+.hub__intro { display: grid; gap: 10px; max-width: 34rem; }
+.hub__lede { font-family: var(--serif); font-size: 1.3rem; line-height: 1.35; color: var(--ink); text-wrap: pretty; }
+.hub__title { margin: 30px 0 14px; font-size: 1.625rem; }
+ul.hub__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.hub__card { display: flex; flex-direction: column; gap: 3px; height: 100%; padding-bottom: 13px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); color: var(--ink); text-decoration: none; transition: border-color .2s; }
+.hub__card:hover { border-color: var(--line-strong); }
+.hub__img { position: relative; display: block; aspect-ratio: 3 / 2; margin-bottom: 8px; overflow: hidden; background: var(--sand); }
+.hub__img picture, .hub__img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hub__name { padding-inline: 12px; font-family: var(--serif); font-size: 1.0625rem; line-height: 1.25; }
+.hub__sub { padding-inline: 12px; font-size: .8125rem; line-height: 1.4; color: var(--ink-2); }
+.hub__card--rates { gap: 6px; padding: 16px 14px; border-color: var(--deep); background: var(--deep); color: var(--on-deep); }
+.hub__card--rates:hover { border-color: var(--deep-2); background: var(--deep-2); }
+.hub__k { font-size: .6875rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--brass-light); }
+:lang(th) .hub__k { letter-spacing: .02em; text-transform: none; font-size: .8125rem; }
+.hub__head { font-family: var(--serif); font-size: 1.3rem; line-height: 1.15; }
+.hub__card--rates .hub__sub { padding: 0; color: var(--on-deep-2); }
+.hub__go { display: inline-flex; align-items: center; gap: 6px; margin-top: auto; padding-top: 6px; font-size: .875rem; font-weight: 600; }
+.hub__go svg { width: 1em; height: 1em; }
+
 /* === Hero (home) ==========================================================
    The opening photograph fills the screen and the header lies over it until the page is scrolled. The words
    sit at the foot of the photograph on a shade that keeps them legible on every slide; the planner floats
@@ -493,8 +525,9 @@ dialog::backdrop { background: rgba(23, 35, 41, .55); }
 .hero .display { margin-top: 20px; color: #fff; font-size: clamp(3.25rem, 1.5rem + 6.4vw, 7.75rem); line-height: .94; letter-spacing: -.028em; }
 .hero .display em { color: var(--brass-light); }
 .hero .display:lang(th) { font-size: clamp(2.5rem, 1.2rem + 4.6vw, 5.5rem); line-height: 1.22; }
-.hero__sub { margin-top: 22px; font-size: var(--fs-lead); line-height: 1.5; max-width: 30em; color: rgba(255, 255, 255, .94); text-shadow: 0 1px 14px rgba(12, 19, 23, .45); }
-:lang(th) .hero__sub { line-height: 1.7; }
+/* with no headline over the photograph, this line carries the opening */
+.hero__sub { margin-top: 18px; font-family: var(--serif); font-size: clamp(1.625rem, 1.15rem + 1.8vw, 2.875rem); line-height: 1.16; letter-spacing: -.012em; max-width: 19em; color: #fff; text-shadow: 0 1px 16px rgba(12, 19, 23, .45); }
+:lang(th) .hero__sub { line-height: 1.5; }
 .hero__actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
 .hero__more { margin-top: 18px; }
 .hero__more .arrow-link { color: #fff; border-color: rgba(255, 255, 255, .45); }
@@ -995,13 +1028,17 @@ ul.fac-list { display: grid; gap: 0; margin-top: clamp(32px, 4vw, 56px); border-
    a time. */
 .pin {
   position: absolute; left: calc(var(--x) * 1%); top: calc(var(--y) * 1%); transform: translate(-50%, -50%);
-  width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--ink); background: var(--paper); color: var(--ink);
+  width: 28px; height: 28px; border-radius: 50%; border: 0; background: none; color: var(--ink);
   display: grid; place-items: center; padding: 0; line-height: 1; cursor: pointer;
-  box-shadow: 0 2px 8px rgba(23, 35, 41, .28); transition: background-color .15s, color .15s;
 }
-.pin > svg { width: 18px; height: 18px; }
+/* a plain dot on the map, drawn inside a target big enough for a finger (and more reach around it) */
+.pin:not(.pin--hotel)::before {
+  content: ""; width: 16px; height: 16px; box-sizing: border-box; border-radius: 50%; border: 2.5px solid var(--paper); background: var(--ink);
+  box-shadow: 0 1px 6px rgba(23, 35, 41, .4); transition: background-color .15s, transform .15s;
+}
 .pin::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; }
-.pin.is-over, .no-js .pin:hover, .pin[aria-pressed="true"], .pin.is-lit { background: var(--ink); color: var(--paper); z-index: 4; }
+.pin.is-over::before, .no-js .pin:hover::before, .pin[aria-pressed="true"]::before, .pin.is-lit::before { background: var(--brass); transform: scale(1.3); }
+.pin.is-over, .no-js .pin:hover, .pin[aria-pressed="true"], .pin.is-lit { z-index: 4; }
 .pin:focus-visible { z-index: 4; }
 .pin[aria-pressed="true"] { z-index: 5; }
 .pin.is-over { z-index: 6; }
@@ -1059,7 +1096,16 @@ ul.fac-list { display: grid; gap: 0; margin-top: clamp(32px, 4vw, 56px); border-
   width: 20px; height: 20px; border-radius: 0; border: 0; background: var(--brass-ink); transform: translate(-50%, -50%) rotate(45deg);
   box-shadow: 0 0 0 4px rgba(255, 255, 255, .92), 0 3px 12px rgba(23, 35, 41, .4); pointer-events: none; z-index: 2; cursor: default;
 }
-@media (max-width: 43.6875em) { .pin:not(.pin--hotel) { width: 30px; height: 30px; } .pin > svg { width: 16px; height: 16px; } .pin::after { inset: -8px; } }
+/* the hotel's diamond catches the light every two seconds */
+.pin--hotel { overflow: hidden; }
+@media (prefers-reduced-motion: no-preference) {
+  .pin--hotel::before {
+    content: ""; position: absolute; inset: -40%; transform: translateX(-100%);
+    background: linear-gradient(90deg, rgba(255, 250, 238, 0) 32%, rgba(255, 250, 238, .95) 50%, rgba(255, 250, 238, 0) 68%);
+    animation: pin-shine 2s ease-in-out infinite;
+  }
+}
+@keyframes pin-shine { 0% { transform: translateX(-100%); } 40%, 100% { transform: translateX(100%); } }
 
 /* the controls: which view, and zoom */
 .mapplate__tools { position: absolute; z-index: 5; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; pointer-events: none; }
@@ -1505,7 +1551,7 @@ fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 
 /* === Footer =============================================================== */
 .site-footer { background: var(--deep); color: var(--on-deep-2); font-size: .9375rem; }
-.site-footer .wrap { padding-block: clamp(48px, 6vw, 80px) 28px; }
+.site-footer .wrap { padding-block: clamp(48px, 6vw, 80px) calc(28px + var(--mcta-h)); }
 .footer-top { display: grid; gap: 40px; }
 .footer-brand img { height: 68px; width: auto; }
 .footer-brand address { margin-top: 22px; line-height: 1.6; color: var(--on-deep); }
@@ -1518,8 +1564,9 @@ fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .footer-col ul { list-style: none; margin: 0; padding: 0; }
 .footer-col a { display: flex; align-items: center; min-height: 44px; text-decoration: none; color: var(--on-deep); }
 .footer-col a:hover { color: var(--brass-light); }
-.footer-mark { display: block; width: 100%; height: auto; margin-top: clamp(48px, 6vw, 88px); overflow: visible; }
-.footer-mark text { font-family: var(--serif); font-size: 128px; fill: none; stroke: var(--brass-light); stroke-width: .9; opacity: .55; }
+/* the hotel's name across the footer, in the site's own serif, solid; sized to the footer's width */
+.site-footer .wrap { container-type: inline-size; }
+.footer-mark { margin: clamp(48px, 6vw, 88px) 0 0; font-family: var(--serif); font-weight: 400; font-size: 11.4vw; font-size: 12.9cqi; line-height: .95; letter-spacing: -.02em; text-align: center; color: var(--brass-light); opacity: .9; }
 .footer-clock { font-variant-numeric: tabular-nums; }
 .footer-base { margin-top: clamp(28px, 4vw, 48px); padding-top: 24px; border-top: 1px solid rgba(245, 242, 236, .16); display: grid; gap: 18px; }
 .footer-base p { max-width: 62em; font-size: .875rem; line-height: 1.6; }
@@ -1545,20 +1592,31 @@ fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .o2-credit__lockup { white-space: nowrap; }
 .o2-credit__mark { display: inline-block; width: 1.95em; height: 1.6em; margin-right: 0.5em; vertical-align: -0.366em; }
 
-/* === Phone booking bar ==================================================== */
-.mcta {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 55;
-  background: rgba(255, 255, 255, .97); border-top: 1px solid var(--line);
-  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
-  display: grid; grid-template-columns: minmax(0, 1fr) 52px; gap: 10px;
-  transform: translateY(110%); visibility: hidden; transition: transform .28s var(--ease), visibility 0s linear .28s;
+/* === The buttons that pop up ============================================== */
+/* Booking at the bottom right (the call button beside it on phones and tablets), back to the top at the bottom
+   left. They rise into place once the page is scrolled and step out of the way of a dialog or the keyboard. */
+.mcta, .to-top {
+  position: fixed; z-index: 55; bottom: calc(16px + env(safe-area-inset-bottom));
+  opacity: 0; visibility: hidden; transform: translateY(calc(100% + 28px));
+  transition: transform .42s cubic-bezier(.34, 1.4, .64, 1), opacity .2s, visibility 0s linear .42s;
 }
-.mcta.is-on { transform: none; visibility: visible; transition: transform .28s var(--ease), visibility 0s; }
-.mcta .btn--call { width: 52px; padding: 0; flex: none; }
+.mcta.is-on, .to-top.is-on { opacity: 1; visibility: visible; transform: none; transition: transform .42s cubic-bezier(.34, 1.4, .64, 1), opacity .2s, visibility 0s; }
+.mcta { right: max(16px, env(safe-area-inset-right)); display: flex; align-items: center; gap: 10px; }
+/* a faint light edge keeps the dark button visible over the dark parts of the page */
+.mcta .btn { min-height: 52px; box-shadow: 0 0 0 1px rgba(245, 242, 236, .3), var(--shadow-2); }
+.mcta .btn--ink { padding-inline: 26px; }
+.mcta .btn--call { width: 52px; padding: 0; flex: none; background: var(--paper); }
 .mcta .btn--call svg { width: 20px; height: 20px; }
-@media (min-width: 65em) { .mcta { display: none; } }
-@media (prefers-reduced-motion: reduce) { .mcta { transition: none; } }
-.no-js .mcta { display: none; }
+@media (min-width: 65em) { .mcta .btn--call { display: none; } }
+.to-top {
+  left: max(16px, env(safe-area-inset-left));
+  display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%;
+  background: var(--paper); color: var(--ink); border: 1px solid var(--ink); box-shadow: var(--shadow-2); text-decoration: none;
+}
+.to-top:hover { background: var(--ink); color: var(--paper); }
+.to-top svg { width: 20px; height: 20px; }
+@media (prefers-reduced-motion: reduce) { .mcta, .to-top, .mcta.is-on, .to-top.is-on { transition: none; } }
+.no-js .mcta, .no-js .to-top { display: none; }
 
 /* === Reveal on first view ================================================= */
 @media (prefers-reduced-motion: no-preference) {
@@ -1659,7 +1717,7 @@ ul.fac-list--flush { margin-top: 0; }
 
 /* === Print ================================================================ */
 @media print {
-  .site-header, .mcta, .concept-strip, .hero__label, .planner, .filterbar, .thumbs { display: none !important; }
+  .site-header, .mcta, .to-top, .concept-strip, .hero__label, .planner, .filterbar, .thumbs { display: none !important; }
   body { background: #fff; }
   .section--deep, .site-footer, .band { background: #fff !important; color: #000 !important; }
 }
@@ -1715,6 +1773,7 @@ ul.fac-list--flush { margin-top: 0; }
   .chip[aria-pressed="true"], .chip.is-on, .radio input:checked + span { outline: 2px solid Highlight; outline-offset: -2px; }
   .pin[aria-pressed="true"], .pin.is-lit { outline: 3px solid Highlight; }
   .pin--hotel { forced-color-adjust: none; background: Highlight; }
+  .pin:not(.pin--hotel)::before { forced-color-adjust: none; background: CanvasText; border-color: Canvas; }
   .thumb[aria-current="true"] { outline: 3px solid Highlight; outline-offset: 2px; }
   .finder__tab[aria-expanded="true"] { border-left: 4px solid Highlight; padding-left: 12px; }
   .nav__link[aria-current="page"], .lang [aria-current="true"] { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; }

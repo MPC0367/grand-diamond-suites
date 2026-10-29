@@ -11,10 +11,11 @@ export const home = {
   hero: {
     eyebrow: { en: "Pratunam, Bangkok", th: "ประตูน้ำ กรุงเทพฯ" },
     /* <em> marks the accent word; in Thai it is coloured, not slanted */
-    title: { en: "City outside.<br>Space <em>within.</em>", th: "ข้างนอกคือเมือง<br>ข้างในคือ<em>พื้นที่ของคุณ</em>" },
+    /* the page's heading, for screen readers and search: the photograph speaks for itself on screen */
+    title: { en: "Grand Diamond Suites Hotel, Pratunam", th: "โรงแรมแกรนด์ไดมอนด์สวีท ประตูน้ำ" },
     sub: {
-      en: "Six suite types beside Platinum Fashion Mall: compact suites for two, and two-bedroom suites for families and groups.",
-      th: "ห้องสวีท 6 แบบ ติดแพลทินัม แฟชั่นมอลล์ ตั้งแต่ห้องขนาดกะทัดรัดสำหรับ 2 ท่าน ไปจนถึงห้องสวีท 2 ห้องนอนสำหรับครอบครัวและกลุ่มเพื่อน",
+      en: "Six kinds of suite, right next to Platinum Fashion Mall.",
+      th: "ห้องสวีท 6 แบบ ติดกับแพลทินัม แฟชั่นมอลล์",
     },
     explore: { en: "Explore suites", th: "ดูห้องสวีท" },
     street: { en: "Phetchaburi Road", th: "ถนนเพชรบุรี" },
@@ -26,12 +27,34 @@ export const home = {
     ],
   },
 
+  /* the phone's home page: everything beyond the suites is a card that opens its own page */
+  hub: {
+    kicker: { en: "At a glance", th: "โดยสรุป" },
+    lede: { en: "{suiteCount} suites in six types on Phetchaburi Road, next to Platinum Fashion Mall.", th: "ห้องสวีท {suiteCount} ห้อง 6 แบบ บนถนนเพชรบุรี ติดแพลทินัม แฟชั่นมอลล์" },
+    title: { en: "Explore Grand Diamond", th: "สำรวจแกรนด์ไดมอนด์สวีท" },
+    rates: {
+      k: { en: "Rates", th: "ราคา" },
+      head: { en: "Rates and offers", th: "ราคาและข้อเสนอ" },
+      sub: { en: "Prices for your dates come from the hotel's booking page.", th: "ราคาตามวันที่เข้าพักมาจากหน้าจองของโรงแรม" },
+      go: { en: "How it works", th: "ดูรายละเอียด" },
+    },
+    cards: [
+      { path: "location/", map: true, name: { en: "Location", th: "ที่ตั้ง" }, sub: { en: "Phetchaburi Road, by Platinum", th: "ถนนเพชรบุรี ติดแพลทินัม" } },
+      { path: "dining/", photo: "ploy-restaurant-dining-room", name: { en: "Dining", th: "ห้องอาหาร" }, sub: { en: "Ploy Restaurant, breakfast from 06:00", th: "ห้องอาหารพลอย อาหารเช้าตั้งแต่ 06:00 น." } },
+      { path: "facilities/", photo: "hotel-pool-and-tower", name: { en: "Facilities", th: "สิ่งอำนวยความสะดวก" }, sub: { en: "Pool, gym and meeting rooms", th: "สระว่ายน้ำ ฟิตเนส ห้องประชุม" } },
+      { path: "gallery/", photo: "penthouse-suite-terrace-skyline", name: { en: "Gallery", th: "แกลเลอรี" }, sub: { en: "All the hotel's photos", th: "ภาพทั้งหมดของโรงแรม" } },
+      { path: "suites/compare/", photo: "family-suite-three-beds-city-windows", name: { en: "Compare suites", th: "เปรียบเทียบห้องสวีท" }, sub: { en: "All six side by side", th: "เทียบทั้ง 6 แบบ" } },
+      { path: "faq/", photo: "hotel-towers-at-night", name: { en: "Questions", th: "คำถามที่พบบ่อย" }, sub: { en: "Breakfast, parking, children", th: "อาหารเช้า ที่จอดรถ และเด็ก" } },
+      { path: "contact/", photo: "hotel-entrance", name: { en: "Contact", th: "ติดต่อ" }, sub: { en: "Phone, email and enquiries", th: "โทรศัพท์ อีเมล และสอบถาม" } },
+    ],
+  },
   reasons: {
     heading: { en: "Three reasons to stay", th: "สามเหตุผลที่ควรเลือกพักที่นี่" },
     items: [
       {
         key: { en: "{suiteCount}", th: "{suiteCount}" },
-        unit: { en: "suites, six types", th: "ห้องสวีท 6 แบบ" },
+        word: { en: "suites", th: "ห้อง" },
+        unit: { en: "six types", th: "ห้องสวีท 6 แบบ" },
         text: {
           en: "From a compact Luxury Suite of {minArea} square metres to a top-floor Penthouse of about {maxArea}, each with the essentials listed for every suite.",
           th: "ตั้งแต่ลักชัวรีสวีทขนาดกะทัดรัด {minArea} ตารางเมตร ไปจนถึงเพ\u2060นท์\u2060เฮาส์ชั้นบนสุดขนาดประมาณ {maxArea} ตารางเมตร ทุกห้องมีสิ่งอำนวยความสะดวกพื้นฐานครบตามที่โรงแรมระบุ",

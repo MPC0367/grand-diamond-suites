@@ -146,6 +146,7 @@ export const ui = {
   msgNights: { en: "{n} nights, {a}", th: "{n} คืน {a}" },
   msgNight: { en: "1 night, {a}", th: "1 คืน {a}" },
   call: { en: "Call the hotel", th: "โทรหาโรงแรม" },
+  toTop: { en: "Back to the top", th: "กลับขึ้นด้านบน" },
 
   /* suites */
   sqm: { en: "sq m", th: "ตร.ม." },

@@ -488,9 +488,12 @@
   var progress = $(".progress");
   var overHead = $(".site-header[data-over]"), rail = $("[data-rail]"), railLinks = rail ? $$("a", rail) : [];
   var railFor = railLinks.map(function (a) { return d.getElementById(a.getAttribute("href").slice(1)); });
-  var bar = $("[data-mcta]");
+  var bar = $("[data-mcta]"), toTop = $("[data-to-top]");
   var heroCta = $("[data-hero-cta]");
   function syncBar() {
+    /* back to the top: once a screen has gone by, and not over a dialog or the keyboard */
+    var ae0 = d.activeElement, typing = !!(ae0 && /^(INPUT|SELECT|TEXTAREA)$/.test(ae0.tagName) && ae0.getClientRects().length), inDialog = !!$("dialog[open]");
+    if (toTop) toTop.classList.toggle("is-on", !typing && !inDialog && (window.scrollY || root.scrollTop) > innerHeight * 0.9);
     if (!bar) return;
     var show;
     if (heroCta) show = heroCta.getBoundingClientRect().bottom < 60;
@@ -510,9 +513,16 @@
     /* the width a classic scrollbar takes, so full-bleed parts can line up with the page column */
     root.style.setProperty("--sbw", Math.max(0, innerWidth - root.clientWidth) + "px");
     if (!bar) return;
-    var small = !wideEnough("65em");
-    root.style.setProperty("--mcta-h", small ? bar.offsetHeight + "px" : "0px");
+    /* the room the floating buttons take at the end of the page: their height and the gap below them */
+    root.style.setProperty("--mcta-h", bar.offsetHeight + 32 + "px");
   }
+  /* back to the top: the page glides up, and the keyboard starts again from the logo */
+  if (toTop) toTop.addEventListener("click", function (ev) {
+    ev.preventDefault();
+    scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+    var brand = $(".site-header .brand");
+    if (brand) brand.focus({ preventScroll: true });
+  });
   d.addEventListener("focusin", syncBar);
   d.addEventListener("focusout", function () { setTimeout(syncBar, 60); });
 
@@ -846,6 +856,12 @@
         t0.setAttribute("aria-expanded", "true"); d.getElementById(t0.getAttribute("aria-controls")).hidden = false;
       }
     }
+    /* on the phone's home page the six suites start as a list of names: a tap opens one */
+    if (finder.closest("[data-list-phone]") && !/^#suite-/.test(location.hash)) {
+      var asPhone = false;
+      try { asPhone = matchMedia("(max-width: 47.99em), (pointer: coarse) and (max-width: 62.5em) and (max-height: 37.5em)").matches; } catch (e) {}
+      if (asPhone) tabs.forEach(function (t) { t.setAttribute("aria-expanded", "false"); d.getElementById(t.getAttribute("aria-controls")).hidden = true; });
+    }
     /* a wide layout always shows one suite */
     addEventListener("resize", function () {
       if (wide() && !tabs.some(function (t) { return t.getAttribute("aria-expanded") === "true"; })) {
@@ -1111,6 +1127,10 @@
       tx = clamp(vw / 2 - cx * w, Math.min(vw - R[2] * w, -R[0] * w), -R[0] * w); ty = clamp(vh / 2 - cy * h, Math.min(vh - R[3] * h, -R[1] * h), -R[1] * h);
       cx = (vw / 2 - tx) / w; cy = (vh / 2 - ty) / h;
       var move = "translate(" + tx.toFixed(2) + "px," + ty.toFixed(2) + "px)";
+      /* Zooming out, the drawing is laid out again at once at the new size instead of a large layer being scaled
+         down: a browser would redraw the whole of that layer for every step, and the zoom would crawl. Zooming in
+         scales the layer up, which is cheap, and it is laid out sharp when it comes to rest. */
+      if (s < laid - 1e-6) { laid = s; raster.style.width = (bw * s).toFixed(2) + "px"; raster.style.height = (bh * s).toFixed(2) + "px"; }
       var k = s / laid;
       raster.style.transform = move + (Math.abs(k - 1) > 1e-5 ? " scale(" + k.toFixed(5) + ")" : "");
       pinsEl.style.width = w.toFixed(2) + "px"; pinsEl.style.height = h.toFixed(2) + "px"; pinsEl.style.transform = move;
@@ -1146,7 +1166,7 @@
          bar, not off the screen. If that part cannot hold the card, the whole window is used. The bar slides
          in and out, so it is taken where it will rest, not where it is caught on the way. */
       var lo = Math.max(0, (headEl ? headEl.getBoundingClientRect().bottom : 0) - vr.top);
-      var hi = Math.min(vh, (barEl && barEl.classList.contains("is-on") ? innerHeight - barEl.offsetHeight : innerHeight) - vr.top);
+      var hi = Math.min(vh, (barEl && barEl.classList.contains("is-on") ? innerHeight - barEl.offsetHeight - (parseFloat(getComputedStyle(barEl).bottom) || 0) : innerHeight) - vr.top);
       if (hi - lo < ch + 2 * EDGE) { lo = 0; hi = vh; }
       var over = function (top) {
         var n = 0;
@@ -1241,20 +1261,34 @@
     var pts = {}, pinch = 0, tap = null, engaged = false;
     view.addEventListener("pointerdown", function (ev) {
       if (ev.pointerType === "mouse") engaged = true;   /* a click in the map: the wheel is the map's until the mouse leaves it */
-      if (!live || ev.button > 0 || (ev.target.closest && ev.target.closest("button, a"))) return;
-      tap = Object.keys(pts).length ? null : { id: ev.pointerId, x: ev.clientX, y: ev.clientY };
+      if (!live || ev.button > 0) return;
+      /* A drag that starts on a marker still moves the map (a finger that lands near a dot is taken to the dot by
+         the browser); a tap on it still opens its card. Controls, links and a marker's card are left to themselves. */
+      var onPin = ev.target.closest ? ev.target.closest(".pin[data-pin]") : null;
+      if (ev.target.closest && (ev.target.closest(".pin__card") || (!onPin && ev.target.closest("button, a")))) return;
+      tap = onPin || Object.keys(pts).length ? null : { id: ev.pointerId, x: ev.clientX, y: ev.clientY };
       /* One finger, on a map no closer in than it opened, may be about to scroll the page. It is watched for
          its first few pixels: if it sets off sideways it moves the map, if up or down it is left to the page. */
-      pts[ev.pointerId] = { x: ev.clientX, y: ev.clientY, x0: ev.clientX, y0: ev.clientY, wait: ev.pointerType === "touch" && !el.classList.contains("is-zoomed") };
+      pts[ev.pointerId] = { x: ev.clientX, y: ev.clientY, x0: ev.clientX, y0: ev.clientY, pin: !!onPin, wait: ev.pointerType === "touch" && !el.classList.contains("is-zoomed") };
       if (Object.keys(pts).length > 1) Object.keys(pts).forEach(function (k) { pts[k].wait = false; pts[k].page = false; });
-      try { view.setPointerCapture(ev.pointerId); } catch (e) {}
       cancelAnimationFrame(anim); pinch = 0;
+      /* on a marker the map waits for the pointer to move before it takes it, so a tap stays the marker's */
+      if (onPin) return;
+      try { view.setPointerCapture(ev.pointerId); } catch (e) {}
       el.classList.add("is-dragging");
     });
     view.addEventListener("pointerleave", function (ev) { if (ev.pointerType === "mouse" && !Object.keys(pts).length) engaged = false; });
     view.addEventListener("pointermove", function (ev) {
       var p = pts[ev.pointerId];
       if (!p) return;
+      if (p.pin) {
+        if (Math.abs(ev.clientX - p.x0) + Math.abs(ev.clientY - p.y0) < 6) return;
+        /* it set off from a marker: from here the map moves with it */
+        p.pin = false; p.x = ev.clientX; p.y = ev.clientY;
+        try { view.setPointerCapture(ev.pointerId); } catch (e) {}
+        el.classList.add("is-dragging");
+        return;
+      }
       var dx = ev.clientX - p.x, dy = ev.clientY - p.y, ids = Object.keys(pts);
       p.x = ev.clientX; p.y = ev.clientY;
       if (tap && (tap.id !== ev.pointerId || Math.abs(ev.clientX - tap.x) + Math.abs(ev.clientY - tap.y) > 6)) tap = null;
@@ -1270,6 +1304,8 @@
     });
     var lift = function (ev) {
       if (!pts[ev.pointerId]) return;
+      /* a marker giving up a finger to the map (when a drag sets off from it) is not the finger leaving */
+      if (ev.type === "lostpointercapture" && ev.target !== view) return;
       var alone = Object.keys(pts).length === 1;
       delete pts[ev.pointerId]; pinch = 0;
       if (!Object.keys(pts).length) el.classList.remove("is-dragging");

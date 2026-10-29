@@ -4,6 +4,7 @@ import { raw } from "../lib/html.mjs";
 const P = {
   arrow: '<path d="M4 12h15M13 6l6 6-6 6"/>',
   down: '<path d="M12 4v15M6 13l6 6 6-6"/>',
+  up: '<path d="M12 20V5M6 11l6-6 6 6"/>',
   out: '<path d="M7 17L17 7M9 7h8v8"/>',
   chev: '<path d="M5 9l7 7 7-7"/>',
   close: '<path d="M5 5l14 14M19 5L5 19"/>',

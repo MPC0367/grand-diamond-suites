@@ -60,7 +60,8 @@ const note = (name, text) => { notes.push({ name, text: String(text) }); };
 /* one scenario failing with an exception must not stop the others */
 /* --block=<text> runs only the blocks whose name contains it, for working on one part */
 const pick = arg("block", null);
-const block = async (name, fn) => { if (pick && !name.includes(String(pick))) return; try { await fn(); } catch (e) { bad(name, "stopped: " + String(e && e.message ? e.message : e).split("\n")[0].slice(0, 300)); } };
+/* CHECK_DEBUG=1 prints the whole message of a block that stops, not only its first line */
+const block = async (name, fn) => { if (pick && !name.includes(String(pick))) return; try { await fn(); } catch (e) { if (process.env.CHECK_DEBUG) console.log(String(e && e.stack ? e.stack : e)); bad(name,"stopped: " + String(e && e.message ? e.message : e).split("\n")[0].slice(0, 300)); } };
 
 const browser = edge ? await chromium.launch({ channel: "msedge", headless: true }) : await webkit.launch();
 const browserVersion = browser.version();
@@ -166,7 +167,7 @@ if (runs("sweep")) {
         const imgs = [...document.querySelectorAll("img")].filter((i) => !i.closest("dialog") && i.getAttribute("src") && i.getClientRects().length > 0);
         await Promise.all(imgs.map((i) => (i.complete ? null : new Promise((res) => { i.addEventListener("load", res); i.addEventListener("error", res); setTimeout(res, 4000); }))));
         for (const i of imgs) if (!(i.complete && i.naturalWidth > 0)) out.images.push(i.currentSrc || i.src);
-        out.hidden = [...document.querySelectorAll(".reveal")].filter((e) => getComputedStyle(e).opacity === "0").length;
+        out.hidden = [...document.querySelectorAll(".reveal")].filter((e) => e.getClientRects().length > 0 && getComputedStyle(e).opacity === "0").length;
         return out;
       });
       const lang = route.slice(0, 2);
@@ -488,7 +489,7 @@ if (runs("behaviour")) {
     const d4 = await docked();
     expect(d3.shown && d3.pressed === "true" && !d4.shown && d4.pressed === "false", "phone: a tap on the card itself puts it away", JSON.stringify([d3.shown, d4.shown, d4.pressed]));
     await page.tap('.pin[data-pin="platinum"]'); await page.waitForTimeout(400);
-    const mapSpot = await page.evaluate(() => { const v = document.querySelector("[data-view]"), r = v.getBoundingClientRect(); for (let y = 0.2; y < 0.8; y += 0.05) for (let x = 0.2; x < 0.8; x += 0.05) { const px = r.left + r.width * x, py = r.top + r.height * y, t = document.elementFromPoint(px, py); if (t && v.contains(t) && !t.closest("button, a, p")) return [px, py]; } return null; });
+    const mapSpot = await page.evaluate(() => { const v = document.querySelector("[data-view]"), r = v.getBoundingClientRect(); for (let y = 0.2; y < 0.8; y += 0.05) for (let x = 0.2; x < 0.8; x += 0.05) { const px = Math.round(r.left + r.width * x), py = Math.round(r.top + r.height * y), t = document.elementFromPoint(px, py); if (t && v.contains(t) && !t.closest("button, a, p")) return [px, py]; } return null; });
     const d5 = await docked();
     await page.touchscreen.tap(mapSpot[0], mapSpot[1]); await page.waitForTimeout(400);
     const d6 = await docked();
@@ -509,7 +510,7 @@ if (runs("behaviour")) {
     await page.evaluate(() => { document.querySelector("[data-map]").__map.choose(""); const v = document.querySelector("[data-view]").getBoundingClientRect(); window.scrollBy(0, v.bottom - (innerHeight - 30)); });
     await page.waitForTimeout(900);
     const topPin = await page.evaluate(() => { const v = document.querySelector("[data-view]").getBoundingClientRect(), head = document.querySelector(".site-header").getBoundingClientRect().bottom; for (const p of document.querySelectorAll("[data-map] .pin[data-pin]")) { const r = p.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2; if (r.top > Math.max(v.top, head) + 2 && y < v.top + 100 && r.left > v.left + 6 && r.right < v.right - 6 && document.elementFromPoint(x, y) === p) return { id: p.getAttribute("data-pin"), at: [x, y] }; } return null; });
-    const cardAndBar = () => page.evaluate((id) => { const c = document.querySelector('.pin[data-pin="' + id + '"] .pin__card').getBoundingClientRect(), bar = document.querySelector(".mcta"); return { cardBottom: Math.round(c.bottom), barRests: innerHeight - bar.offsetHeight, barNow: Math.round(bar.getBoundingClientRect().top) }; }, topPin.id);
+    const cardAndBar = () => page.evaluate((id) => { const c = document.querySelector('.pin[data-pin="' + id + '"] .pin__card').getBoundingClientRect(), bar = document.querySelector(".mcta"); return { cardBottom: Math.round(c.bottom), barRests: innerHeight - bar.offsetHeight - (parseFloat(getComputedStyle(bar).bottom) || 0), barNow: Math.round(bar.getBoundingClientRect().top) }; }, topPin.id);
     await page.touchscreen.tap(topPin.at[0], topPin.at[1]); await page.waitForTimeout(450);
     await page.evaluate((id) => { document.querySelector(".mcta").classList.remove("is-on"); document.querySelector("[data-map]").__map.place(id); }, topPin.id); await page.waitForTimeout(450);
     const low = await cardAndBar();
@@ -704,10 +705,10 @@ if (runs("behaviour")) {
     /* every marker sits on the point of the picture it belongs to, at its own size */
     const aligned = () => page.evaluate(() => {
       const el = document.querySelector("[data-map]"), r = el.querySelector("[data-raster]").getBoundingClientRect();
-      return [...el.querySelectorAll(".pin[data-pin]")].every((p) => { const x = parseFloat(p.style.getPropertyValue("--x")) / 100, y = parseFloat(p.style.getPropertyValue("--y")) / 100, w = p.offsetWidth, left = p.offsetLeft, top = p.offsetTop, lay = el.querySelector("[data-pins]").getBoundingClientRect(); return w === 34 && Math.abs(lay.left + left - (r.left + x * r.width)) < 1.5 && Math.abs(lay.top + top - (r.top + y * r.height)) < 1.5; });
+      return [...el.querySelectorAll(".pin[data-pin]")].every((p) => { const x = parseFloat(p.style.getPropertyValue("--x")) / 100, y = parseFloat(p.style.getPropertyValue("--y")) / 100, w = p.offsetWidth, left = p.offsetLeft, top = p.offsetTop, lay = el.querySelector("[data-pins]").getBoundingClientRect(); return w === 28 && Math.abs(lay.left + left - (r.left + x * r.width)) < 1.5 && Math.abs(lay.top + top - (r.top + y * r.height)) < 1.5; });
     });
     /* a spot of the map with no marker or control over it, to drag from */
-    const blank = () => page.evaluate(() => { const v = document.querySelector("[data-view]"), r = v.getBoundingClientRect(); for (let y = 0.7; y > 0.2; y -= 0.07) for (let x = 0.3; x < 0.8; x += 0.07) { const px = r.left + r.width * x, py = r.top + r.height * y, t = document.elementFromPoint(px, py); if (t && v.contains(t) && !t.closest("button, a, p")) return [px, py]; } return null; });
+    const blank = () => page.evaluate(() => { const v = document.querySelector("[data-view]"), r = v.getBoundingClientRect(); for (let y = 0.7; y > 0.2; y -= 0.07) for (let x = 0.3; x < 0.8; x += 0.07) { const px = Math.round(r.left + r.width * x), py = Math.round(r.top + r.height * y), t = document.elementFromPoint(px, py); if (t && v.contains(t) && !t.closest("button, a, p")) return [px, py]; } return null; });
 
     /* as it opened, before anything below moves it */
     const atOpen = { ...(await state()), out: await page.isEnabled('[data-zoom="out"]'), back: await page.isDisabled('[data-zoom="reset"]'), in: await page.isEnabled('[data-zoom="in"]'), aligned: await aligned() };
@@ -726,7 +727,7 @@ if (runs("behaviour")) {
         shown: cs.visibility === "visible" && cs.opacity === "1",
         inside: r.left >= v.left - 0.5 && r.right <= v.right + 0.5 && r.top >= v.top - 0.5 && r.bottom <= v.bottom + 0.5,
         offMarker: r.bottom <= m.top + 0.5 || r.top >= m.bottom - 0.5,
-        kind: c.querySelector(".pin__kind").textContent.trim(), kindIcon: c.querySelector(".pin__kind svg").getAttribute("class"), icon: p.querySelector(":scope > svg").getAttribute("class"),
+        kind: c.querySelector(".pin__kind").textContent.trim(), kindIcon: !!c.querySelector(".pin__kind svg"), icon: !!p.querySelector(":scope > svg"),
         name: c.querySelector(".pin__name").textContent.trim(), what: c.querySelector(".pin__what").textContent.trim(), far: c.querySelector(".pin__far").textContent.trim(),
         said: about ? about.textContent.replace(/\s+/g, " ").trim() : "", pressed: p.getAttribute("aria-pressed"),
         rect: [r.left, r.top, r.right, r.bottom], at: [m.left + m.width / 2, m.top + m.height / 2],
@@ -743,7 +744,7 @@ if (runs("behaviour")) {
       await away();
     }
     expect(cards.length === 5 && cards.every((c) => c.shown && c.only === c.id && c.lit), "map card: pointing at a marker with the mouse opens its card, only that one, and lights its row in the list", JSON.stringify(cards.map((c) => [c.id, c.shown, c.only, c.lit])));
-    expect(cards.every((c) => c.kind === KIND[c.group][0] && c.kindIcon === KIND[c.group][1] && c.icon === KIND[c.group][1]), "map card: it says in a word what the icon means (Shopping, Transport or Culture), beside the marker's own icon", JSON.stringify(cards.map((c) => [c.id, c.kind, c.icon, c.kindIcon])));
+    expect(cards.every((c) => c.kind === KIND[c.group][0] && !c.kindIcon && !c.icon), "map card: the marker is a plain dot, and its card says in a word what the place is (Shopping, Transport or Culture)", JSON.stringify(cards.map((c) => [c.id, c.kind, c.icon, c.kindIcon])));
     expect(cards.every((c) => c.name.length > 3 && c.what.length > 15 && /^About [\d.,]+ (m|km) from the hotel, in a straight line$/.test(c.far) && c.said === c.what + " " + c.far), "map card: it names the place, says what it is and how far it is in a straight line, and a screen reader is given the same as the marker's description", JSON.stringify(cards.map((c) => [c.name, c.far, c.said === c.what + " " + c.far])));
     expect(cards.every((c) => c.inside && c.offMarker), "map card: it lies whole inside the map's window, and never over its own marker", JSON.stringify(cards.map((c) => [c.id, c.inside, c.offMarker])));
 
@@ -973,12 +974,13 @@ if (runs("behaviour")) {
     }
 
     /* the location page: twelve markers, three kinds, matched to the list by icon and by pointing */
-    const loc = await page.evaluate(() => { const kinds = {}; document.querySelectorAll("[data-map] .pin[data-pin]").forEach((p) => { const k = p.getAttribute("data-kind"), i = p.querySelector("svg").getAttribute("class"); (kinds[k] = kinds[k] || new Set()).add(i); }); const rows = [...document.querySelectorAll(".place")]; return { pins: document.querySelectorAll("[data-map] .pin[data-pin]").length, kinds: Object.keys(kinds).sort().map((k) => k + ":" + [...kinds[k]].join("+")).join(" "), rowsMatch: rows.every((r) => r.querySelector(".place__n svg").getAttribute("class") === document.querySelector('.pin[data-pin="' + r.getAttribute("data-place") + '"] svg').getAttribute("class")), chips: [...document.querySelectorAll(".chip--kind")].map((ch) => ch.getAttribute("data-filter") + ":" + ch.querySelector("svg").getAttribute("class")).join(" "), numbered: rows.some((r) => /^\s*\d/.test(r.textContent)), list: document.querySelector(".places").tagName }; });
-    expect(loc.pins === 12 && loc.kinds === "culture:i-landmark shopping:i-cart transport:i-train" && loc.rowsMatch && loc.chips === "shopping:i-cart transport:i-train culture:i-landmark" && !loc.numbered && loc.list === "UL", "map: on the location page each kind of place has one icon, used on its markers, its rows and its filter", JSON.stringify(loc));
+    /* the markers are plain dots (asked 2026-10-20); the list beside the map and its filter keep one icon per kind */
+    const loc = await page.evaluate(() => { const kinds = {}, pins = [...document.querySelectorAll("[data-map] .pin[data-pin]")], rows = [...document.querySelectorAll(".place")]; rows.forEach((r) => { const k = document.querySelector('.pin[data-pin="' + r.getAttribute("data-place") + '"]').getAttribute("data-kind"), i = r.querySelector(".place__n svg").getAttribute("class"); (kinds[k] = kinds[k] || new Set()).add(i); }); return { pins: pins.length, dots: pins.every((p) => !p.querySelector(":scope > svg") && !p.querySelector(".pin__kind svg")), kinds: Object.keys(kinds).sort().map((k) => k + ":" + [...kinds[k]].join("+")).join(" "), chips: [...document.querySelectorAll(".chip--kind")].map((ch) => ch.getAttribute("data-filter") + ":" + ch.querySelector("svg").getAttribute("class")).join(" "), numbered: rows.some((r) => /^\s*\d/.test(r.textContent)), list: document.querySelector(".places").tagName }; });
+    expect(loc.pins === 12 && loc.dots && loc.kinds === "culture:i-landmark shopping:i-cart transport:i-train" && loc.chips === "shopping:i-cart transport:i-train culture:i-landmark" && !loc.numbered && loc.list === "UL", "map: on the location page the markers are plain dots, and each kind of place has one icon in the list and in its filter", JSON.stringify(loc));
     await page.locator("[data-map]").scrollIntoViewIfNeeded();
     await page.hover('.place[data-place="bacc"] .place__btn'); await page.waitForTimeout(250);
     expect(await page.evaluate(() => { const p = document.querySelector('.pin[data-pin="bacc"]'); return p.classList.contains("is-lit") && getComputedStyle(p.querySelector(".pin__card")).visibility === "visible"; }), "map: pointing at a row in the list lights its marker and shows its card");
-    const all12 = await page.evaluate(() => [...document.querySelectorAll("[data-map] .pin[data-pin]")].map((p) => { const c = p.querySelector(".pin__card"), about = document.getElementById(p.getAttribute("aria-describedby")); return { id: p.getAttribute("data-pin"), kind: c.querySelector(".pin__kind").textContent.trim(), same: c.querySelector(".pin__kind svg").getAttribute("class") === p.querySelector(":scope > svg").getAttribute("class"), name: c.querySelector(".pin__name").textContent.trim(), row: document.querySelector('.place[data-place="' + p.getAttribute("data-pin") + '"] .place__name').textContent.trim(), what: c.querySelector(".pin__what").textContent.trim(), far: c.querySelector(".pin__far").textContent.trim(), said: !!about && about.textContent.replace(/\s+/g, " ").trim().length > 40, label: p.getAttribute("aria-label") }; }));
+    const all12 = await page.evaluate(() => [...document.querySelectorAll("[data-map] .pin[data-pin]")].map((p) => { const c = p.querySelector(".pin__card"), about = document.getElementById(p.getAttribute("aria-describedby")); return { id: p.getAttribute("data-pin"), kind: c.querySelector(".pin__kind").textContent.trim(), same: !c.querySelector(".pin__kind svg") && !p.querySelector(":scope > svg"), name: c.querySelector(".pin__name").textContent.trim(), row: document.querySelector('.place[data-place="' + p.getAttribute("data-pin") + '"] .place__name').textContent.trim(), what: c.querySelector(".pin__what").textContent.trim(), far: c.querySelector(".pin__far").textContent.trim(), said: !!about && about.textContent.replace(/\s+/g, " ").trim().length > 40, label: p.getAttribute("aria-label") }; }));
     expect(all12.length === 12 && all12.every((c) => ["Shopping", "Transport", "Culture"].includes(c.kind) && c.same && c.name === c.row && c.label === c.name + ", " + c.kind && c.what.length > 15 && /[.]$/.test(c.what) && /^About [\d.,]+ (m|km) from the hotel, in a straight line$/.test(c.far) && c.said), "map card: each of the twelve markers on the location page has a card with its kind, its name as the list has it, a line on what it is, and its distance", JSON.stringify(all12.filter((c) => !(c.same && c.name === c.row && c.said)).slice(0, 2)));
     await page.mouse.move(8, 300); await page.waitForTimeout(200);
     const rowAndPin = () => page.evaluate(() => document.querySelector('.place[data-place="bacc"] .place__btn').getAttribute("aria-expanded") + "," + document.querySelector('.pin[data-pin="bacc"]').getAttribute("aria-pressed"));
@@ -1013,11 +1015,11 @@ if (runs("behaviour")) {
       const cdp = await phone.newCDPSession(tp);
       const touch = (type, pts) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: pts.map((p, i) => ({ x: Math.round(p[0]), y: Math.round(p[1]), id: i })) });
       const st = () => tp.evaluate(() => { const el = document.querySelector("[data-map]"), v = el.querySelector("[data-view]").getBoundingClientRect(), all = el.querySelector("[data-pins]").getBoundingClientRect(); return { scale: Math.round(all.height / v.height * 100) / 100, left: Math.round(all.left - v.left), top: Math.round(all.top - v.top), y: Math.round(scrollY), touch: getComputedStyle(el.querySelector("[data-view]")).touchAction }; });
-      const free = await tp.evaluate(() => { const v = document.querySelector("[data-view]"), r = v.getBoundingClientRect(); for (let y = 0.75; y > 0.3; y -= 0.06) for (let x = 0.35; x < 0.7; x += 0.06) { const px = r.left + r.width * x, py = r.top + r.height * y, ok = [[0, 0], [-45, 0], [45, 0]].every(([dx, dy]) => { const t = document.elementFromPoint(px + dx, py + dy); return t && v.contains(t) && !t.closest("button, a, p"); }); if (ok) return [px, py]; } return null; });
+      const free = await tp.evaluate(() => { const v = document.querySelector("[data-view]"), r = v.getBoundingClientRect(); for (let y = 0.75; y > 0.3; y -= 0.06) for (let x = 0.35; x < 0.7; x += 0.06) { const px = Math.round(r.left + r.width * x), py = Math.round(r.top + r.height * y), ok = [[0, 0], [-45, 0], [45, 0]].every(([dx, dy]) => { const t = document.elementFromPoint(px + dx, py + dy); return t && v.contains(t) && !t.closest("button, a, p"); }); if (ok) return [px, py]; } return null; });
       const drag = async (from, dx, dy, steps = 8) => { await touch("touchStart", [from]); for (let i = 1; i <= steps; i++) { await touch("touchMove", [[from[0] + dx * i / steps, from[1] + dy * i / steps]]); await tp.waitForTimeout(16); } await touch("touchEnd", []); await tp.waitForTimeout(350); };
       /* a marker's card under a real finger: a tap opens it, a second tap closes it, a drag leaves it, a tap on the map closes it */
       const tapAt = async (pt) => { await touch("touchStart", [pt]); await tp.waitForTimeout(40); await touch("touchEnd", []); await tp.waitForTimeout(450); };
-      const findFree = () => tp.evaluate(() => { const v = document.querySelector("[data-view]"), r = v.getBoundingClientRect(); for (let y = 0.75; y > 0.1; y -= 0.06) for (let x = 0.35; x < 0.7; x += 0.06) { const px = r.left + r.width * x, py = r.top + r.height * y, ok = [[0, 0], [-45, 0], [45, 0]].every(([dx, dy]) => { const t = document.elementFromPoint(px + dx, py + dy); return t && v.contains(t) && !t.closest("button, a, p"); }); if (ok) return [px, py]; } return null; });
+      const findFree = () => tp.evaluate(() => { const v = document.querySelector("[data-view]"), r = v.getBoundingClientRect(); for (let y = 0.75; y > 0.1; y -= 0.06) for (let x = 0.35; x < 0.7; x += 0.06) { const px = Math.round(r.left + r.width * x), py = Math.round(r.top + r.height * y), ok = [[0, 0], [-45, 0], [45, 0]].every(([dx, dy]) => { const t = document.elementFromPoint(px + dx, py + dy); return t && v.contains(t) && !t.closest("button, a, p"); }); if (ok) return [px, py]; } return null; });
       const aPin = await tp.evaluate(() => { const v = document.querySelector("[data-view]").getBoundingClientRect(); for (const p of document.querySelectorAll("[data-map] .pin[data-pin]")) { const r = p.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2; if (r.left > v.left + 6 && r.right < v.right - 6 && r.top > v.top + 6 && r.bottom < v.bottom - 6 && document.elementFromPoint(x, y) === p) return { id: p.getAttribute("data-pin"), at: [x, y] }; } return null; });
       const cardNow = () => tp.evaluate((id) => { const p = document.querySelector('.pin[data-pin="' + id + '"]'), cs = getComputedStyle(p.querySelector(".pin__card")), r = p.getBoundingClientRect(); return { shown: cs.visibility === "visible" && cs.opacity === "1", pressed: p.getAttribute("aria-pressed"), over: p.classList.contains("is-over"), docked: p.classList.contains("is-docked"), at: [r.left + r.width / 2, r.top + r.height / 2] }; }, aPin.id);
       await tapAt(aPin.at); const c1 = await cardNow();
@@ -1068,7 +1070,7 @@ if (runs("behaviour")) {
        edge, where the mouse could not follow it, so pointing opens nothing and a click does */
     const narrow = await newContext({ viewport: { width: 600, height: 800 } });
     const np = await narrow.newPage();
-    await np.goto(BASE + "en/", { waitUntil: "load" });
+    await np.goto(BASE + "en/location/", { waitUntil: "load" }); /* the home page leaves the map to the location page at this width */
     await np.locator("[data-map]").scrollIntoViewIfNeeded(); await np.waitForTimeout(1000);
     const nPin = await np.evaluate(() => { const v = document.querySelector("[data-view]").getBoundingClientRect(); for (const p of document.querySelectorAll("[data-map] .pin[data-pin]")) { const r = p.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2; if (r.left > v.left + 6 && r.right < v.right - 6 && r.top > v.top + 6 && r.bottom < v.bottom - 6 && y > 80 && y < innerHeight - 20 && document.elementFromPoint(x, y) === p) return { id: p.getAttribute("data-pin"), at: [x, y] }; } return null; });
     const nCard = () => np.evaluate((id) => { const p = document.querySelector('.pin[data-pin="' + id + '"]'), c = p.querySelector(".pin__card"), cs = getComputedStyle(c), r = c.getBoundingClientRect(), v = document.querySelector("[data-view]").getBoundingClientRect(); return { shown: cs.visibility === "visible" && cs.opacity === "1", docked: p.classList.contains("is-docked"), inside: r.left >= v.left - 0.5 && r.right <= v.right + 0.5 && r.top >= v.top - 0.5 && r.bottom <= v.bottom + 0.5, onScreen: r.top >= 0 && r.bottom <= innerHeight }; }, nPin.id);
@@ -1083,8 +1085,8 @@ if (runs("behaviour")) {
     const noScript = await newContext({ viewport: { width: 390, height: 844 }, javaScriptEnabled: false });
     const bare = await noScript.newPage();
     await bare.goto(BASE + "en/location/", { waitUntil: "load" });
-    const nj = await bare.evaluate(() => { const el = document.querySelector("[data-map]"), v = el.querySelector("[data-view]"); return { img: el.querySelector(".mapplate__img").getClientRects().length > 0, pins: el.querySelectorAll(".pin[data-pin] > svg").length, tools: el.querySelector(".mapplate__tools").getClientRects().length, note: document.querySelector(".mapplate__note").getClientRects().length, scrolls: v.scrollWidth > v.clientWidth, page: document.documentElement.scrollWidth <= innerWidth }; });
-    expect(nj.img && nj.pins === 12 && nj.tools === 0 && nj.note === 0 && nj.scrolls && nj.page, "no JavaScript: the map is a picture with icon markers that scrolls sideways in its box, with no dead controls", JSON.stringify(nj));
+    const nj = await bare.evaluate(() => { const el = document.querySelector("[data-map]"), v = el.querySelector("[data-view]"); return { img: el.querySelector(".mapplate__img").getClientRects().length > 0, pins: [...el.querySelectorAll(".pin[data-pin]")].filter((p) => p.getClientRects().length > 0 && getComputedStyle(p, "::before").content !== "none").length, tools: el.querySelector(".mapplate__tools").getClientRects().length, note: document.querySelector(".mapplate__note").getClientRects().length, scrolls: v.scrollWidth > v.clientWidth, page: document.documentElement.scrollWidth <= innerWidth }; });
+    expect(nj.img && nj.pins === 12 && nj.tools === 0 && nj.note === 0 && nj.scrolls && nj.page, "no JavaScript: the map is a picture with its dots that scrolls sideways in its box, with no dead controls", JSON.stringify(nj));
     await bare.focus('.pin[data-pin="platinum"]');
     expect(await bare.evaluate(() => { const c = document.querySelector('.pin[data-pin="platinum"] .pin__card'); return getComputedStyle(c).visibility === "visible" && /Shopping/.test(c.textContent) && /straight line/.test(c.textContent); }), "no JavaScript: a marker still shows its card, above it, when it is focused or pointed at");
     await noScript.close();
@@ -2502,7 +2504,8 @@ if (runs("axe") && edge) {
       /* the differences switch belongs to the two-suite view of narrower screens */
       if (await page.isVisible("[data-diff]")) { await page.click("[data-diff]"); await rest(); await scan("state: comparison, differences only"); }
       /* the map with a marker's card open (asked for after the audit), in both languages */
-      for (const [route, id] of [["en/location/", "platinum"], ["th/", "centralworld"]]) {
+      /* on a phone the home page leaves the map to the location page */
+      for (const [route, id] of [["en/location/", "platinum"], [w < 700 ? "th/location/" : "th/", "centralworld"]]) {
         await page.goto(BASE + route, { waitUntil: "load" });
         await page.locator("[data-map]").scrollIntoViewIfNeeded();
         await page.evaluate((id) => document.querySelector("[data-map]").__map.reveal(id), id);

@@ -307,7 +307,7 @@ export function footer(c) {
           ${col(c.t("follow"), [["Facebook", h.links.facebook, true], ["Instagram", h.links.instagram, true], ["LINE", h.links.line, true]])}
         </nav>
       </div>
-      <svg class="footer-mark" viewBox="0 0 1000 120" aria-hidden="true" focusable="false"><text x="500" y="104" text-anchor="middle" textLength="992" lengthAdjust="spacingAndGlyphs">Grand Diamond</text></svg>
+      <p class="footer-mark" lang="en" aria-hidden="true">Grand Diamond</p>
       <div class="footer-base">
         ${c.config.mode === "preview" ? html`<p>${c.t("conceptFooter", { date: c.dateLong(c.config.factsChecked) })} <a class="link" href="${h.links.official[c.lang]}" target="_blank" rel="noopener">granddiamondsuites.com${newTab(c)}</a></p>` : ""}
         <div class="footer-meta">
@@ -322,10 +322,13 @@ export function footer(c) {
 }
 
 /** Fixed bar on phones: one booking action and a call button. */
+/** The two buttons that pop up as the page is scrolled: back to the top at the bottom left, and booking at the
+    bottom right (with the call button beside it on phones and tablets). */
 export function mobileBar(c) {
-  return html`<div class="mcta" data-mcta>
-    ${bookButton(c, { cls: "btn btn--ink" })}
+  return html`<a class="to-top" href="#top" data-to-top aria-label="${c.t("toTop")}">${icon("up")}</a>
+  <div class="mcta" data-mcta>
     <a class="btn btn--line btn--call" href="${c.hotel.phone.href}" aria-label="${c.t("call")}: ${c.hotel.phone.display}">${icon("phone")}</a>
+    ${bookButton(c, { cls: "btn btn--ink" })}
   </div>`;
 }
 
@@ -476,7 +479,7 @@ export function mapPlate(c, places) {
                reader gets the same from the marker's name and description. */
             const kind = c.l(locationPage.kinds[p.kind]);
             const far = c.t("pinDistance", { d: distText(c, metresBetween(c.hotel.coords, p)) }).replace(/^[a-z]/, (ch) => ch.toUpperCase());
-            return html`<button type="button" class="pin" style="${pos(p.lat, p.lon)}"${onWide(p.lat, p.lon)} data-pin="${p.id}" data-kind="${p.kind}" aria-pressed="false" aria-label="${c.l(p.name)}, ${kind}" aria-describedby="pin-${p.id}-about">${icon(KIND_ICON[p.kind])}<span class="pin__card" aria-hidden="true"><span class="pin__kind">${icon(KIND_ICON[p.kind])}${kind}</span><span class="pin__name">${c.l(p.name)}</span><span class="pin__about" id="pin-${p.id}-about"><span class="pin__what">${c.l(p.brief)}</span> <span class="pin__far">${far}</span></span><span class="pin__x">${icon("close")}</span></span></button>`;
+            return html`<button type="button" class="pin" style="${pos(p.lat, p.lon)}"${onWide(p.lat, p.lon)} data-pin="${p.id}" data-kind="${p.kind}" aria-pressed="false" aria-label="${c.l(p.name)}, ${kind}" aria-describedby="pin-${p.id}-about"><span class="pin__card" aria-hidden="true"><span class="pin__kind">${kind}</span><span class="pin__name">${c.l(p.name)}</span><span class="pin__about" id="pin-${p.id}-about"><span class="pin__what">${c.l(p.brief)}</span> <span class="pin__far">${far}</span></span><span class="pin__x">${icon("close")}</span></span></button>`;
           })}
         </div>
       </div>

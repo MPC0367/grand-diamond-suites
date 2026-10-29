@@ -145,32 +145,32 @@ export const hotel = {
       key: "pool", icon: "pool", lead: true,
       name: { en: "Outdoor swimming pool", th: "สระว่ายน้ำกลางแจ้ง" },
       text: {
-        en: "An open-air pool with loungers along its edge, set among frangipani trees and palms.",
-        th: "สระว่ายน้ำกลางแจ้ง มีเก้าอี้อาบแดดเรียงรายริมสระ ท่ามกลางต้นลีลาวดีและต้นปาล์ม",
+        en: "Open-air pool with loungers, under frangipani and palms.",
+        th: "สระกลางแจ้ง มีเก้าอี้อาบแดด ร่มรื่นด้วยลีลาวดีและต้นปาล์ม",
       },
     },
     {
       key: "fitness", icon: "fitness", lead: true,
       name: { en: "Fitness centre", th: "ฟิตเนส" },
       text: {
-        en: "Cardio and strength-training machines for keeping up a routine while you travel.",
-        th: "เครื่องออกกำลังกายแบบคาร์ดิโอและเครื่องฝึกกล้ามเนื้อ สำหรับผู้ที่อยากออกกำลังกายต่อเนื่องระหว่างเดินทาง",
+        en: "Cardio and weight machines.",
+        th: "เครื่องคาร์ดิโอและเครื่องเวท",
       },
     },
     {
       key: "dining", icon: "dining",
       name: { en: "Ploy Restaurant and room service", th: "ร้านอาหารพลอยและรูมเซอร์วิส" },
       text: {
-        en: "Thai and international dishes in the restaurant, or ordered to your suite.",
-        th: "อาหารไทยและอาหารนานาชาติ รับประทานที่ห้องอาหารหรือสั่งขึ้นห้องพักได้",
+        en: "Thai and international food, in the restaurant or your room.",
+        th: "อาหารไทยและนานาชาติ ทานที่ร้านหรือสั่งขึ้นห้อง",
       },
     },
     {
       key: "meetings", icon: "meeting",
       name: { en: "Meeting facilities", th: "ห้องประชุม" },
       text: {
-        en: "Meeting space for business travellers. Room sizes and layouts are not published, so ask the hotel.",
-        th: "พื้นที่ประชุมสำหรับผู้เดินทางเพื่อธุรกิจ โรงแรมไม่ได้เผยแพร่ขนาดห้องและรูปแบบการจัดที่นั่ง กรุณาสอบถามโรงแรม",
+        en: "Meeting rooms. Ask the hotel about sizes and layouts.",
+        th: "ห้องประชุม สอบถามขนาดและการจัดห้องกับโรงแรม",
       },
     },
     {
