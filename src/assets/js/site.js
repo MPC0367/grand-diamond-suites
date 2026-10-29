@@ -1156,7 +1156,8 @@
     function placeCard(p) {
       var card = $(".pin__card", p);
       if (!card || !live) return;
-      var q = at(p), px = tx + q[0] * bw * s, py = ty + q[1] * bh * s, r = p.offsetWidth / 2, dock = !wideEnough("43.75em");
+      /* the card keeps the distance it had from the old 34 px marker: a dot is drawn smaller, but the card must still clear the hotel's diamond beside Platinum */
+      var q = at(p), px = tx + q[0] * bw * s, py = ty + q[1] * bh * s, half = p.offsetWidth / 2, r = Math.max(half, 17), dock = !wideEnough("43.75em");
       var wide = dock ? Math.min(vw - 2 * EDGE, 352) + "px" : "";
       if (card.style.width !== wide) card.style.width = wide;
       p.classList.toggle("is-docked", dock);
@@ -1188,7 +1189,7 @@
         p.classList.toggle("is-below", below);
         card.style.setProperty("--caret", clamp(px - X, 14, cw - 14).toFixed(1) + "px");
       }
-      var o = px - r + p.clientLeft, t = py - r + p.clientTop;
+      var o = px - half + p.clientLeft, t = py - half + p.clientTop;
       card.style.setProperty("--cx", (X - o).toFixed(1) + "px"); card.style.setProperty("--cy", (Y - t).toFixed(1) + "px");
     }
     /* once the map is at rest: the squares now in view, at the level that suits the zoom */
